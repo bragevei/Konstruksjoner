@@ -1,0 +1,29 @@
+# Antall knutepunkt 
+9
+# x, y, fastholdt/fri rotasjon=0,1
+0 0 1			
+0 10 0
+0 20 0
+10 20 0
+10 10 0
+10 0 0
+20 20 0
+20 10 0
+20 0 0
+# Antall element
+10			
+# Systemfrihetsgrad for lokal frihetsgrad 1, Systemfrihetsgrad for lokal ende 2, Elastisitetsmodul, Profiltype
+0 1 70854000 1
+1 2 70854000 1
+1 4 141708000 2
+2 3 70854000 2
+4 3 70854000 1
+5 4 70854000 1
+3 6 70854000 2
+4 7 141708000 1
+7 6 70854000 2
+8 7 70854000 1
+# Antall tverrsnittsgeometrier
+0
+# Antall laster
+0
