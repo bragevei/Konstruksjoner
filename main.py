@@ -15,7 +15,6 @@ def main():
     elemlen = lengder(punkt, elemkonn)
 
     # -----Beregner bøyestivhet for alle elementer
-    # Lag funksjonen selv
     # EI = boyestivhet(tvsnitt, geom, ...
 
     # ------Bygger systemlastvektor
