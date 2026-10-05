@@ -10,4 +10,3 @@ def lengder(punkt, elemkonn):
         elemlen = np.append(elemlen, np.sqrt(dx*dx + dy*dy))
 
     return elemlen
-print(lengder)

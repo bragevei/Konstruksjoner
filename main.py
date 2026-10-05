@@ -5,7 +5,7 @@ import numpy as np
 from lesinput import lesinput
 from lengder import lengder
 from stivhetsmatrise import elementstivhetsmatrise
-
+from beregne_boyestivhet import beregne_boyestivhet
 
 
 def main():
@@ -15,6 +15,7 @@ def main():
 
     # -----Beregner elementlengder
     elemlen = lengder(punkt, elemkonn)
+    
 
     # -----Beregner bøyestivhet for alle elementer
     # EI = boyestivhet(tvsnitt, geom, ...
@@ -37,6 +38,7 @@ def main():
     # ------Bygger systemstivhetsmatrisen ved å innaddere elementstivhetsmatriser vha. elementkonnektivitet
     # Lag funksjonen selv
     #K = stivmat(nelem, npunkt, tvsnitt, elemkonn, elemlen, EI, ...
+    
     K = elementstivhetsmatrise()
     
     
