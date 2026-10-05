@@ -1,0 +1,21 @@
+"""
+utsnitt av txt fil:
+
+tversnittsgrupper
+nr,f,s,t,E,R,geom
+nr,f,s,t,E,R,geom
+nr,f,s,t,E,R,geom
+tverrsnittsgrupper ferdig
+
+nr = tversnittsgruppe nummer,f=flensbredde,s=steghøyde,t=tykkelse,E=elastisitetsmodul, R=middelradius, geom er enten 1 eller 0 
+"""
+#funksjonen til returnere tversnittsgruppe data som en 2d array
+import numpy as np
+def lese_tversnittsgruppene():
+    with open("input.txt", "r") as f:
+        tekst = f.readlines()
+    start = tekst.index("tversnittsgrupper\n") + 1
+    slutt = tekst.index("tversnittsgrupper ferdig\n")
+    tversnittsgruppene = np.loadtxt(tekst[start:slutt],delimiter = ",")
+    return tversnittsgruppene
+
