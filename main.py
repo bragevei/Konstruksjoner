@@ -4,6 +4,8 @@ import numpy as np
 # Funksjoner
 from lesinput import lesinput
 from lengder import lengder
+from stivhetsmatrise import elementstivhetsmatrise
+
 
 
 def main():
@@ -35,7 +37,10 @@ def main():
 
     # ------Bygger systemstivhetsmatrisen ved å innaddere elementstivhetsmatriser vha. elementkonnektivitet
     # Lag funksjonen selv
-    # K = stivmat(nelem, npunkt, tvsnitt, elemkonn, elemlen, EI, ...
+    #K = stivmat(nelem, npunkt, tvsnitt, elemkonn, elemlen, EI, ...
+    K = elementstivhetsmatrise()
+    
+    
 
     # ------Innfører grensebetingelser
     # Lag funksjonen selv basert på valgt metode for innføring av grensebetingelser
