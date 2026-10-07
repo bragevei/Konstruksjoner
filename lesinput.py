@@ -54,7 +54,7 @@ def lesinput():
     # Leser lastdata
     # Bestem selv verdiene som er nødvendig å lese inn, samt hva verdiene som leses inn skal representere
     # lastdata = np.loadtxt(fid, dtype = float, max_rows = nlast)     # <-- Forslag til innlesing av lastdata
-
+    
     # Lukker input-filen
     fid.close()
 
