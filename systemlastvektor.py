@@ -1,5 +1,1 @@
 
-
-def elemlast():
-    
-    return
