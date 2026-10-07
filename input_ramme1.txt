@@ -1,7 +1,7 @@
 # Antall knutepunkt 
 10
 # x, y, fastholdt/fri rotasjon=0,1
-0 0 0			
+0 0 0
 18 0 1
 38 0 0
 0 12 1

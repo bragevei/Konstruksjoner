@@ -15,10 +15,9 @@ def main():
 
     # -----Beregner elementlengder
     elemlen = lengder(punkt, elemkonn)
-    
 
     # -----Beregner bøyestivhet for alle elementer
-    # EI = boyestivhet(tvsnitt, geom, ...
+    #EI = beregne_boyestivhet(tvsnitt, geom, ...
 
     # ------Bygger systemlastvektor
     R = np.zeros(npunkt)
@@ -34,11 +33,8 @@ def main():
         # Lag funksjonen selv
         # R = knutmom(R, ...
 
-    # ------Bygger systemstivhetsmatrisen ved å innaddere elementstivhetsmatriser vha. elementkonnektivitet
-    # Lag funksjonen selv
-    #K = stivmat(nelem, npunkt, tvsnitt, elemkonn, elemlen, EI, ...
-    
-    K = elementstivhetsmatrise()
+    # ------Bygger systemstivhetsmatrisen ved å innaddere elementstivhetsmatriser vha. elementkonnektivitet    
+    K = elementstivhetsmatrise(npunkt, punkt, nelem, elemkonn, tvsnitt, EI)
     
     
 

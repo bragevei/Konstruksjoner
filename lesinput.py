@@ -52,9 +52,17 @@ def lesinput():
     nlast = int(fid.readline())
 
     # Leser lastdata
-    # Bestem selv verdiene som er nødvendig å lese inn, samt hva verdiene som leses inn skal representere
-    # lastdata = np.loadtxt(fid, dtype = float, max_rows = nlast)     # <-- Forslag til innlesing av lastdata
-    
+    # x_start, y_start, x_slutt, y_slutt
+    # Kolonne 1: x-koordinat til startpunkt
+    # Kolonne 2: y-koordinat til startpunkt
+    # Kolonne 3: x-koordinat til sluttpunkt
+    # Kolonne 4: y-koordinat til sluttpunkt
+
+    x_start = elem[:, 0]
+    y_start = elem[:, 1]
+    x_slutt = elem[:, 2]
+    y_slutt = elem[:, 3]
+
     # Lukker input-filen
     fid.close()
 
