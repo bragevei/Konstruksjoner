@@ -4,8 +4,8 @@ import numpy as np
 # Funksjoner
 from lesinput import lesinput
 from lengder import lengder
+from systemlastvektor import elemlast
 from stivhetsmatrise import elementstivhetsmatrise
-
 
 
 def main():
@@ -23,7 +23,6 @@ def main():
     R = np.zeros(npunkt)
     #for ilast in lastdata:
         # -----Beregner elementlastvektor S_fim m/fastinnspenningsmomenter for elementer med ytre last
-        # Lag funksjonen selv
         # S_fim = elemlast(elemlen, ...
 
         # -----Adderer elementlastvektor S_fim inn i systemlastvektor R vha. elementkonnektivitet
