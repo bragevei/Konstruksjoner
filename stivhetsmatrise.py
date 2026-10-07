@@ -1,6 +1,7 @@
 import numpy as np
 
 from lengder import lengder
+from beregne_boyestivhet import beregne_boyestivhet
 
 def elementstivhetsmatrise(npunkt, punkt, nelem, elemkonn, tvsnitt, EI): #Allerede faktorisert med 4, trenger bare faktorisere inn EI/L
     dim = npunkt
