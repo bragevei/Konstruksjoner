@@ -3,7 +3,7 @@ import numpy as np
 def lesinput():
 
     # Åpner inputfilen
-    fid = open("input.txt", "r")
+    fid = open("input_ramme1.txt", "r")
 
     # Leser totalt antall punkt
     comlin = fid.readline()            #  Leser kommentarlinje. Må leses fordi 'readline' leser 1 linje, linje for linje
@@ -16,7 +16,13 @@ def lesinput():
     punkt = np.loadtxt(fid, dtype = int, max_rows = npunkt)     # 'max_rows = npunkt' sorger for at vi bare leser 
 																# de 'npunkt' neste linjene i tekstfilen
 
-    # Leser antall elementer
+    # Leser antall tverrsnittsgeometrier
+    comlin = fid.readline() 
+    ngeom = int(fid.readline())
+    
+    geom = np.loadtxt(fid, dtype = float, max_rows = ngeom)
+
+
     comlin = fid.readline() 
     nelem = int(fid.readline())
 
@@ -45,23 +51,38 @@ def lesinput():
 
     # Leser geometridata for tverrsnittstypene
     # Bestem selv verdiene som er nødvendig å lese inn, samt hva verdiene som leses inn skal representere
-    # geom = np.loadtxt(fid, dtype = float, max_rows = ngeom)
 
-    # Leser antall laster som virker på rammen
-    comlin = fid.readline() 
-    nlast = int(fid.readline())
-
-    # Leser lastdata
+    # Leser elementlengder
     # x_start, y_start, x_slutt, y_slutt
     # Kolonne 1: x-koordinat til startpunkt
     # Kolonne 2: y-koordinat til startpunkt
     # Kolonne 3: x-koordinat til sluttpunkt
     # Kolonne 4: y-koordinat til sluttpunkt
+    # comlin = fid.readline() 
+    # elemlen=np.loadtxt(fid, dtype=float)
 
-    x_start = elem[:, 0]
-    y_start = elem[:, 1]
-    x_slutt = elem[:, 2]
-    y_slutt = elem[:, 3]
+    # x_start = elem[:, 0]
+    # y_start = elem[:, 1]
+    # x_slutt = elem[:, 2]
+    # y_slutt = elem[:, 3]
+
+    # Leser antall laster som virker på rammen
+    # Kolonne 1 og 2: x- og y-koordinat til startpunkt
+    # Kolonne 3 og 4: x- og y-koordinat til sluttpunkt
+    # Kolonne 5: laststørrelse
+    # Kolonne 6: lasttype
+    # 0 = fordelt last
+    # 1 = punktlast
+    # 2 = moment
+    # comlin = fid.readline() 
+    # lastdata = np.loadtxt(fid, dtype=float)
+
+    # last_x_start = lastdata[:, 0]
+    # last_y_start = lastdata[:, 1]
+    # last_x_slutt = lastdata[:, 2]
+    # last_y_slutt = lastdata[:, 3]
+    # last_storrelse = lastdata[:, 4]
+    # last_type = lastdata[:, 5]
 
     # Lukker input-filen
     fid.close()
