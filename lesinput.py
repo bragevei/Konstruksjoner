@@ -1,90 +1,118 @@
 import numpy as np
 
-def lesinput():
+def _neste_linjer(linjer, antall, seksjon):
+    #Leser et gitt antall datalinjer fra inputfilen
+    data = []
+    while len(data) < antall:
+        try:
+            linje = next(linjer)
+        except StopIteration as feil:
+            raise ValueError(
+                f"Inputfilen mangler data i seksjonen '{seksjon}'"
+            ) from feil
 
-    # Åpner inputfilen
-    fid = open("input_ramme1.txt", "r")
+        linje = linje.split("#", 1)[0].strip()
+        if linje:
+            data.append(linje.split())
 
-    # Leser totalt antall punkt
-    comlin = fid.readline()            #  Leser kommentarlinje. Må leses fordi 'readline' leser 1 linje, linje for linje
-    npunkt = int(fid.readline())       # 'fid.readline()' leser en linje, 'int(...)' gjør at linjen tolkes som et heltall
+    return data
 
-    # x- og y-koordinater til knutepunktene og grensebetingelse
-    # Knutepunktnummer tilsvarer radnummer
-    # x-koordinat lagres i kolonne 1, y-koordinat i kolonne 2
-    # Grensebetingelse lagres i kolonne 3; 1 = fast innspent og 0 = fri rotasjon
-    punkt = np.loadtxt(fid, dtype = int, max_rows = npunkt)     # 'max_rows = npunkt' sorger for at vi bare leser 
-																# de 'npunkt' neste linjene i tekstfilen
 
-    # Leser antall tverrsnittsgeometrier
-    comlin = fid.readline() 
-    ngeom = int(fid.readline())
+def _antall(linjer, seksjon):
+    #Leser neste heltall fra inputfilen
+    try:
+        linje = next(linjer)
+    except StopIteration as feil:
+        raise ValueError(
+            f"Inputfilen mangler antall for seksjonen '{seksjon}'"
+        ) from feil
+
+    linje = linje.split("#", 1)[0].strip()
+    while not linje:
+        try:
+            linje = next(linjer).split("#", 1)[0].strip()
+        except StopIteration as feil:
+            raise ValueError(
+                f"Inputfilen mangler antall for seksjonen '{seksjon}'"
+            ) from feil
+
+    try:
+        verdi = int(linje)
+    except ValueError as feil:
+        raise ValueError(
+            f"Antallet i seksjonen '{seksjon}' må være et heltall."
+        ) from feil
+
+    if verdi < 0:
+        raise ValueError(f"Antallet i seksjonen '{seksjon}' kan ikke være negativt")
+    return verdi
+
+
+def _tabell(data, kolonner, seksjon):
+    #Konverterer rader til en numerisk tabell med riktig antall kolonner
+    if not data:
+        return np.empty((0, kolonner), dtype=float)
+
+    for rad in data:
+        if len(rad) != kolonner:
+            raise ValueError(
+                f"Seksjonen '{seksjon}' må ha {kolonner} kolonner per rad"
+            )
+
+    try:
+        return np.asarray(data, dtype=float)
+    except ValueError as feil:
+        raise ValueError(
+            f"Seksjonen '{seksjon}' inneholder en verdi som ikke er numerisk"
+        ) from feil
+
+
+def lesinput(input_fil="input_ramme1.txt"):
+    # Leser rammedata fra input fil.
+
+    # Returnerer antall og data i samme rekkefølge som i inputfilen:
+    # npunkt, punkt, ngeom, geom, nelem, elemkonn, tvsnitt, nlast, lastdata
+
+    # punkt inneholder x-koordinat, y-koordinat, fastholdingsbetingelse og knutepunkt-ID. 
+    # geom inneholder gruppe-ID og tverrsnittsdata.
+    # tvsnitt inneholder E-modul og gruppe-ID per element, mens lastdata inneholder lasttype, koordinater og laststørrelse.
     
-    geom = np.loadtxt(fid, dtype = float, max_rows = ngeom)
+    try:
+        with open(input_fil, "r", encoding="utf-8") as fil:
+            linjer = iter(fil)
 
+            npunkt = _antall(linjer, "knutepunkter")
+            punkt = _tabell(
+                _neste_linjer(linjer, npunkt, "knutepunkter"),
+                4,
+                "knutepunkter",
+            )
 
-    comlin = fid.readline() 
-    nelem = int(fid.readline())
+            ngeom = _antall(linjer, "tverrsnittsgeometrier")
+            geom = _tabell(
+                _neste_linjer(linjer, ngeom, "tverrsnittsgeometrier"),
+                7,
+                "tverrsnittsgeometrier",
+            )
 
-    # Kolonne 1 og 2: Elementkonnektivitet, dvs. sammenheng mellom elementfrihetsgrader og systemfrihetsgrader
-    # Kolonne 3: E-modul
-    # Kolonne 4: Tverrsnittstype
-    # Elementnummer tilsvarer radnummer
-    # Systemfrihetsgrad for lokal frihetsgrad 1 lagres i kolonne 1
-    # Systemfrihetsgrad for lokal frihetsgrad 2 lagres i kolonne 2
-    # Det anbefales at nummerering av systemfrihetsgrad starter på 0, slik at det samsvarerer med indeksering i Python
-    elem = np.loadtxt(fid, dtype = int, max_rows = nelem)
+            nelem = _antall(linjer, "elementer")
+            elem = _tabell(
+                _neste_linjer(linjer, nelem, "elementer"),
+                3,
+                "elementer",
+            )
 
-    # Elementkonnektivitet
-    # Kolonne 1: Systemfrihetsgrad for elementfrihetsgrad 1
-    # Kolonne 2: Systemfrihetsgrad for elementfrihetsgrad 2
-    elemkonn = elem[0:nelem,0:2]
+            nlast = _antall(linjer, "laster")
+            lastdata = _tabell(
+                _neste_linjer(linjer, nlast, "laster"),
+                6,
+                "laster",
+            )
+    except OSError as feil:
+        raise OSError(f"Kunne ikke åpne inputfilen '{input_fil}'") from feil
 
-    # Tverrsnittsdata
-    # Kolonne 1: E-modul
-    # Kolonne 2: Tverrsnittstype, I-profil=1 og rørprofil=2
-    tvsnitt = elem[0:nelem,2:4]
+    # Indekser brukes direkte i NumPy-arrays og må derfor være heltall.
+    elemkonn = elem[:, 0:2].astype(int)
+    tvsnitt = elem[:, 2]
 
-    # Leser antall laster som virker på rammen
-    comlin = fid.readline() 
-    ngeom = int(fid.readline())
-
-    # Leser geometridata for tverrsnittstypene
-    # Bestem selv verdiene som er nødvendig å lese inn, samt hva verdiene som leses inn skal representere
-
-    # Leser elementlengder
-    # x_start, y_start, x_slutt, y_slutt
-    # Kolonne 1: x-koordinat til startpunkt
-    # Kolonne 2: y-koordinat til startpunkt
-    # Kolonne 3: x-koordinat til sluttpunkt
-    # Kolonne 4: y-koordinat til sluttpunkt
-    # comlin = fid.readline() 
-    # elemlen=np.loadtxt(fid, dtype=float)
-
-    # x_start = elem[:, 0]
-    # y_start = elem[:, 1]
-    # x_slutt = elem[:, 2]
-    # y_slutt = elem[:, 3]
-
-    # Leser antall laster som virker på rammen
-    # Kolonne 1 og 2: x- og y-koordinat til startpunkt
-    # Kolonne 3 og 4: x- og y-koordinat til sluttpunkt
-    # Kolonne 5: laststørrelse
-    # Kolonne 6: lasttype
-    # 0 = fordelt last
-    # 1 = punktlast
-    # 2 = moment
-    # comlin = fid.readline() 
-    # lastdata = np.loadtxt(fid, dtype=float)
-
-    # last_x_start = lastdata[:, 0]
-    # last_y_start = lastdata[:, 1]
-    # last_x_slutt = lastdata[:, 2]
-    # last_y_slutt = lastdata[:, 3]
-    # last_storrelse = lastdata[:, 4]
-    # last_type = lastdata[:, 5]
-
-    # Lukker input-filen
-    fid.close()
-
-    return npunkt, punkt, nelem, elemkonn, tvsnitt
+    return npunkt, punkt, ngeom, geom, nelem, elemkonn, tvsnitt, nlast, lastdata

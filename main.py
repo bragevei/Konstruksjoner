@@ -4,37 +4,39 @@ import numpy as np
 # Funksjoner
 from lesinput import lesinput
 from lengder import lengder
-from stivhetsmatrise import elementstivhetsmatrise
 from beregne_boyestivhet import beregne_boyestivhet
+from systemlastvektor import elemlast, elemlast_til_syslast, knutmom
+from stivhetsmatrise import elementstivhetsmatrise
+
 
 def main():
 
     # -----Leser inputdata
-    npunkt, punkt, nelem, elemkonn, tvsnitt = lesinput()
+    npunkt, punkt, ngeom, geom, nelem, elemkonn, tvsnitt, nlast, lastdata = lesinput()
 
     # -----Beregner elementlengder
     elemlen = lengder(punkt, elemkonn)
+
     # -----Beregner bøyestivhet for alle elementer
-    #EI = beregne_boyestivhet(tvsnitt, geom, ...
+    EI = beregne_boyestivhet(geom, tvsnitt)
 
     # ------Bygger systemlastvektor
     R = np.zeros(npunkt)
-    #for ilast in lastdata:
+    for ilast in lastdata:
         # -----Beregner elementlastvektor S_fim m/fastinnspenningsmomenter for elementer med ytre last
-        # S_fim = elemlast(elemlen, ...
+        S_fim = elemlast(lastdata, punkt, elemkonn)
 
         # -----Adderer elementlastvektor S_fim inn i systemlastvektor R vha. elementkonnektivitet
         # Lag funksjonen selv
-        # R = elemlast_til_syslast(R, S_fim, elemkonn )
+        R = elemlast_til_syslast(R, S_fim, elemkonn)
 
         # -----Adderer knutepunktsmoment inn i systemlastvektor R
         # Lag funksjonen selv
-        # R = knutmom(R, ...
+        R = knutmom(R, lastdata, punkt)
 
     # ------Bygger systemstivhetsmatrisen ved å innaddere elementstivhetsmatriser vha. elementkonnektivitet    
-    # K = elementstivhetsmatrise(npunkt, punkt, nelem, elemkonn, tvsnitt, EI)
+    K = elementstivhetsmatrise(npunkt, punkt, nelem, elemkonn, tvsnitt, EI)
     
-
     # ------Innfører grensebetingelser
     # Lag funksjonen selv basert på valgt metode for innføring av grensebetingelser
     # Kn, Rn = bc(punkt, K, R)
