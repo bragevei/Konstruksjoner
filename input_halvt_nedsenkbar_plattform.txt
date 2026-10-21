@@ -1,0 +1,31 @@
+# Antall knutepunkt 
+5
+# x, y, fastholdt/fri rotasjon=0/1, knutepunktID
+0 0 1 0
+0 1 1 1
+1 1 1 2
+2 0 1 3
+2 1 1 4
+# Antall tverrsnittsgeometrier
+4
+# GruppeID, flenshoyde, flensbredde, steghoyde, stegtykkelse, radius, ror_tykkelse, rør/I-profil = 0/1, Elastisitetsmodul, I-verdi (dersom det gjelder)
+0 0 0 0 0 0 0 0 1 10
+1 0 0 0 0 0 0 0 1 5
+2 0 0 0 0 0 0 0 1 1.4142135623730950488
+3 0 0 0 0 0 0 0 1 1
+# Antall element
+7
+# knutepunktID_start, knutepunktID_slutt, GruppeID
+0 1 0
+1 2 1
+0 2 2
+2 3 2
+3 4 0
+2 4 1
+0 3 3
+# Antall laster
+3
+# fordelt last/punktlast/moment=0/1/2, x_start, y_start, x_slutt, y_slutt, laststørrelse
+0 0 1 2 1 -1
+0 0 1 1 1 -0.5
+1 2 1 0 0 -1

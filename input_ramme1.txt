@@ -13,13 +13,13 @@
 18 0 1 9
 # Antall tverrsnittsgeometrier
 6
-# GruppeID, flens, steg, radius, tykkelse, rør/I-profil = 0/1, Elastisitetsmodul
-0 0 0 10 5 0 210000000
-1 0 0 15 2 0 210000000
-2 0 0 10 3 0 210000000
-3 10 15 0 0 1 210000000
-4 10 15 0 0 1 210000000
-5 10 15 0 0 1 210000000
+# GruppeID, flenshoyde, flensbredde, steghoyde, stegtykkelse, radius, ror_tykkelse, rør/I-profil = 0/1, Elastisitetsmodul, I-verdi (dersom det gjelder)
+0 0 0 0 0 300 50 0 210000000 0
+1 0 0 0 0 100 10 0 210000000 0
+2 0 0 0 0 100 10 0 210000000 0
+3 17.5 300 350 10 0 0 1 210000000 0
+4 16.5 300 330 9.5 0 0 1 210000000 0
+5 19 300 390 11 0 0 1 210000000 0
 # Antall element
 11
 # knutepunktID_start, knutepunktID_slutt, GruppeID
@@ -36,12 +36,12 @@
 2 5 5
 # Antall laster
 8
-# fordelt last/punktlast/moment=0/1/2, x_start, y_start, x_slutt, y_slutt, laststørrelse
-0 0 12 18 12 12
-0 0 36 18 36 9
-0 18 12 38 12 5
-0 0 0 0 36 8
-0 0 36 0 0 13
-1 0 36 0 0 120
-1 9 24 0 0 64
-2 0 36 0 0 275
+# jevnt fordelt last/punktlast/moment/trekantlast=0/1/2/3, x_start, y_start, x_slutt, y_slutt, laststørrelse
+0 0 12 18 12 -12
+0 0 36 18 36 -9
+0 18 12 38 12 -5
+3 0 0 0 36 8
+3 0 36 0 0 -13
+1 9 24 0 0 -120
+1 0 36 0 0 -64
+2 0 36 0 0 -275
