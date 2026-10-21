@@ -10,17 +10,15 @@ def _beregn_treghetsmoment(rad, igruppe):
     radius = rad[5]
     tykkelse = rad[6]
     profiltype = int(rad[7])
-
     if profiltype == 0:
         if radius <= 0 or tykkelse <= 0:
             raise ValueError(f"Gruppe {igruppe} mangler positiv radius og tykkelse for rørprofil")
         # Tynnvegget rørprofil
-        return np.pi * radius**3 * tykkelse
+        return (np.pi*((2*radius)**4-(2*radius-2*tykkelse)**4))/64
 
     if profiltype == 1:
         if min(flenshoyde, flensbredde, steghoyde, stegtykkelse) <= 0:
             raise ValueError(f"Gruppe {igruppe} mangler positive mål for I-profil")
-
         # To flenser rundt nøytralaksen og et steg mellom dem
         flenser = 2 * (flensbredde * flenshoyde**3 / 12 + flensbredde*flenshoyde * (steghoyde / 2 + flenshoyde / 2) ** 2)
         steg = stegtykkelse * steghoyde**3 / 12
@@ -29,10 +27,11 @@ def _beregn_treghetsmoment(rad, igruppe):
     raise ValueError(f"Ukjent tverrsnittstype {profiltype} i gruppe {igruppe}; ""bruk 0 for rørprofil eller 1 for I-profil")
 
 def beregne_boyestivhet(geom, tvsnitt):
-    # Beregner ett EI-tall for hvert element.
+    # Beregner EI i kN*m^2 for hvert element.
 
     # geom skal ha kolonnene:
-    #gruppeID, flenshøyde, flensbredde, steghøyde, stegtykkelse, radius, tykkelse, profiltype, E, I-verdi
+    # gruppeID, flenshøyde, flensbredde, steghøyde, stegtykkelse,
+    # radius, tykkelse, profiltype, E [MPa], I-verdi [mm^4]
 
     #Dersom I-verdi er større enn null, brukes denne direkte. Dersom verdien er null, beregnes treghetsmomentet fra geometrien. 
     # tvsnitt inneholder gruppe-ID-en for hvert element.
@@ -64,5 +63,8 @@ def beregne_boyestivhet(geom, tvsnitt):
         else:
             treghetsmoment[igruppe] = _beregn_treghetsmoment(rad, igruppe)
 
-    EI_grupper = elastisitetsmodul * treghetsmoment
+    # E [MPa] = N/mm^2. Konverter E til kN/m^2 og I til m^4.
+    elastisitetsmodul_kN_m2 = elastisitetsmodul * 1e6
+    treghetsmoment_m4 = treghetsmoment * 1e-12
+    EI_grupper = elastisitetsmodul_kN_m2 * treghetsmoment_m4
     return EI_grupper[tvsnitt]

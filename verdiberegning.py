@@ -217,6 +217,7 @@ def moment(rot, punkt, elemkonn, EI, lastdata, toleranse=1e-8):
             endemomenter[0], -endemomenter[1], num=3
         )
         lastmoment, _ = _lastmoment(posisjoner, last, lengde)
+        print(lastmoment)
         Mval[ielem] = rotasjonsmoment + lastmoment
     return Mval
 

@@ -29,6 +29,7 @@ def main(input_fil="input_ramme1.txt"):
 
     # -----Adderer knutepunktsmoment inn i systemlastvektor R
     R = knutmom(R, lastdata, punkt)
+    print(R)
 
     # ------Bygger systemstivhetsmatrisen ved å innaddere elementstivhetsmatriser vha. elementkonnektivitet    
     K = elementstivhetsmatrise(npunkt, punkt, nelem, elemkonn, tvsnitt, EI)
@@ -52,7 +53,7 @@ def main(input_fil="input_ramme1.txt"):
 
     #-----Printer bøyespenninger for alle elementene
     print("Bøyespenninger:")
-    print(sigma_M)
+    # print(sigma_M)
 
     #-----Printer momentverdier for alle elementer
     print("Momentverdier for tegning av M-diagram (for hånd):")
@@ -60,10 +61,8 @@ def main(input_fil="input_ramme1.txt"):
 
     #-----Printer skjærkraftverdier ved endene for alle elementer
     print("Skjærkraftverdier for tegning av Q-diagram (for hånd):")
-    print(Qval)
+    # print(Qval)
 
     return sigma_M, Mval, Qval
 
-
-if __name__ == "__main__":
-    main()
+main()
