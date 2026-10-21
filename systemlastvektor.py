@@ -133,7 +133,9 @@ def elemlast(lastdata, punkt, elemkonn, toleranse=1e-8):
 
         for treffdata in treff:
             ielem, a, b, lengde = treffdata[:4]
-            if lasttype == 0:
+            if lasttype == 2:
+                continue
+            elif lasttype == 0:
                 # Direkte integrasjon av en konstant fordelt kraftlast.
                 integral_start = ((b**2 - a**2) / 2.0 - 2.0 * (b**3 - a**3) / (3.0 * lengde) + (b**4 - a**4) / (4.0 * lengde**2))
                 integral_slutt = (-(b**3 - a**3) / (3.0 * lengde) + (b**4 - a**4) / (4.0 * lengde**2))

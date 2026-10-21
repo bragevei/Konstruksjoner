@@ -213,11 +213,8 @@ def moment(rot, punkt, elemkonn, EI, lastdata, toleranse=1e-8):
                 4 * rot[start_id] + 2 * rot[slutt_id],
                 2 * rot[start_id] + 4 * rot[slutt_id],
             ])
-        rotasjonsmoment = np.linspace(
-            endemomenter[0], -endemomenter[1], num=3
-        )
+        rotasjonsmoment = (endemomenter[0]+(-endemomenter[1]-endemomenter[0])*posisjoner/lengde)
         lastmoment, _ = _lastmoment(posisjoner, last, lengde)
-        print(lastmoment)
         Mval[ielem] = rotasjonsmoment + lastmoment
     return Mval
 
@@ -272,18 +269,11 @@ def boyespenn(Mval, geom, tvsnitt):
         radius, tykkelse = geom[gruppe, 5:7]
         oppgitt_I = geom[gruppe, 9]
         if profiltype == 0:
-            treghetsmoment = (
-                oppgitt_I if oppgitt_I > 0
-                else np.pi * radius**3 * tykkelse
-            )
+            treghetsmoment = (oppgitt_I if oppgitt_I > 0 else (np.pi*((2*radius)**4-(2*radius-2*tykkelse)**4))/64)
             ytterfiber = radius
         elif profiltype == 1:
             treghetsmoment = oppgitt_I if oppgitt_I > 0 else (
-                2 * (
-                    flensbredde * flenshoyde**3 / 12
-                    + flensbredde * flenshoyde
-                    * (steghoyde / 2 + flenshoyde / 2) ** 2
-                )
+                2 * (flensbredde * flenshoyde**3 / 12 + flensbredde * flenshoyde * (steghoyde / 2 + flenshoyde / 2) ** 2)
                 + stegtykkelse * steghoyde**3 / 12
             )
             ytterfiber = steghoyde / 2 + flenshoyde
@@ -291,5 +281,5 @@ def boyespenn(Mval, geom, tvsnitt):
             raise ValueError(f"Ukjent tverrsnittstype {profiltype}")
         if treghetsmoment <= 0:
             raise ValueError(f"Gruppe {gruppe} har ugyldig treghetsmoment")
-        spenning[ielem] = Mval[ielem] * ytterfiber / treghetsmoment
+        spenning[ielem] = Mval[ielem]*1e6 * ytterfiber / treghetsmoment
     return spenning

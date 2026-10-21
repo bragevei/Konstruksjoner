@@ -10,10 +10,11 @@ def _beregn_treghetsmoment(rad, igruppe):
     radius = rad[5]
     tykkelse = rad[6]
     profiltype = int(rad[7])
+    
     if profiltype == 0:
         if radius <= 0 or tykkelse <= 0:
             raise ValueError(f"Gruppe {igruppe} mangler positiv radius og tykkelse for rørprofil")
-        # Tynnvegget rørprofil
+        # Rørprofil
         return (np.pi*((2*radius)**4-(2*radius-2*tykkelse)**4))/64
 
     if profiltype == 1:
@@ -64,7 +65,7 @@ def beregne_boyestivhet(geom, tvsnitt):
             treghetsmoment[igruppe] = _beregn_treghetsmoment(rad, igruppe)
 
     # E [MPa] = N/mm^2. Konverter E til kN/m^2 og I til m^4.
-    elastisitetsmodul_kN_m2 = elastisitetsmodul * 1e6
+    elastisitetsmodul_kN_m2 = elastisitetsmodul * 1e3
     treghetsmoment_m4 = treghetsmoment * 1e-12
     EI_grupper = elastisitetsmodul_kN_m2 * treghetsmoment_m4
     return EI_grupper[tvsnitt]
