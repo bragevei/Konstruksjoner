@@ -13,13 +13,13 @@
 18 0 1 9
 # Antall tverrsnittsgeometrier
 6
-# GruppeID, flenshoyde, flensbredde, steghoyde, stegtykkelse, ytre radius, ror_tykkelse, rør/I-profil = 0/1, Elastisitetsmodul (MPa), I-verdi (dersom det gjelder)
-0 0 0 0 0 150 50 0 210000 0
-1 0 0 0 0 50 10 0 210000 0
-2 0 0 0 0 50 10 0 210000 0
-3 17.5 300 315 10 0 0 1 210000 0
-4 16.5 300 297 9.5 0 0 1 210000 0
-5 19 300 352 11 0 0 1 210000 0
+# GruppeID, flenshoyde, flensbredde, steghoyde, stegtykkelse, diameter, ror_tykkelse, rør/I-profil = 0/1, Elastisitetsmodul (MPa), flytspenning (MPa), I-verdi (mm^4, dersom det gjelder)
+0 0 0 0 0 300 50 0 210000 355 0
+1 0 0 0 0 100 10 0 210000 355 0
+2 0 0 0 0 100 10 0 210000 355 0
+3 17.5 300 315 10 0 0 1 210000 355 0
+4 16.5 300 297 9.5 0 0 1 210000 355 0
+5 19 300 352 11 0 0 1 210000 355 0
 # Antall element
 11
 # knutepunktID_start, knutepunktID_slutt, GruppeID
@@ -29,10 +29,10 @@
 3 4 3
 4 5 1
 5 6 1
-6 9 1
-7 8 2
-1 6 4
 6 7 4
+7 8 2
+6 9 1
+1 6 4
 2 5 5
 # Antall laster
 8

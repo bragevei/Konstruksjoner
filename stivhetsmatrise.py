@@ -13,9 +13,9 @@ def elementstivhetsmatrise(npunkt, punkt, nelem, elemkonn, tvsnitt, EI):
     K = np.zeros((dim, dim), dtype=float)
     EI = np.asarray(EI, dtype=float)
     if EI.ndim != 1 or len(EI) != nelem:
-        raise ValueError("EI må inneholde én verdi per element.")
+        raise ValueError("EI må inneholde én verdi per element")
     if np.any(EI <= 0):
-        raise ValueError("EI må være positiv for alle elementer.")
+        raise ValueError("EI må være positiv for alle elementer")
 
     for ielem, (i, j) in enumerate(elemkonn):
         faktor = EI[ielem] / elemlen[ielem]

@@ -2,20 +2,17 @@
 import numpy as np
 
 # Funksjoner
-from lesinput import lesinput
+from lesinput import lesinput, sett_standardprofil, standardprofiler, tverrsnittnavn
 from beregne_boyestivhet import beregne_boyestivhet
 from systemlastvektor import elemlast, elemlast_til_syslast, knutmom
 from stivhetsmatrise import elementstivhetsmatrise
 from grensebetingelser import bc
 from verdiberegning import moment, shear, boyespenn
 
-
-def main(input_fil="input_ramme1.txt"):
+def main(input_fil="input_ramme1.txt", dimensjoner=True):
     # -----Leser inputdata
     npunkt, punkt, ngeom, geom, nelem, elemkonn, tvsnitt, nlast, lastdata = lesinput(input_fil)
-
-    # -----Beregner bøyestivhet for alle elementer
-    EI = beregne_boyestivhet(geom, tvsnitt)
+    oppgitte_tverrsnitt = tverrsnittnavn(geom)
 
     # ------Bygger systemlastvektor
     R = np.zeros(npunkt)
@@ -31,25 +28,20 @@ def main(input_fil="input_ramme1.txt"):
     # -----Adderer knutepunktsmoment inn i systemlastvektor R
     R = knutmom(R, lastdata, punkt)
 
-    # ------Bygger systemstivhetsmatrisen ved å innaddere elementstivhetsmatriser vha. elementkonnektivitet    
-    K = elementstivhetsmatrise(npunkt, punkt, nelem, elemkonn, tvsnitt, EI)
-
-    # ------Innfører grensebetingelser
-    Kn, Rn = bc(punkt, K, R)
-
-    # -----Løser ligningssystemet
-    rot = np.linalg.solve(Kn, Rn)
-
-    #------Beregner momentverdier for alle element ved endene, og ved midtpunkt for fordelt last og under punktlaster
-    #------vha. superposisjonsprinsippet
-    Mval = moment(rot, punkt, elemkonn, EI, lastdata)
-
-    #------Beregner skjærkraftverdier for alle element ved endene vha. enkel derivasjon (Q=dM/ds) for Q-bidrag fra moment
-    #------pga. bjelkeenderotasjoner, og bruker superposisjonsprinsippet for å addere til Q-bidrag fra ytre last
-    Qval = shear(rot, punkt, elemkonn, EI, lastdata)
-
-    #------Beregner bøyespenning for alle element ved endene, og ved midtpunkt for fordelt last og under punktlaster
-    sigma_M = boyespenn(Mval, geom, tvsnitt)
+    # Ser om koden skal dimensjonere (som i c)) eller analysere (som i b))
+    if dimensjoner:
+        geom, profilvalg, Mval, Qval, sigma_M = (dimensjoner_med_global_stivhet(geom, punkt, elemkonn, tvsnitt, lastdata, R))
+        #Printer tverrsnittene som blir funnet
+        print("Tverrsnitt per gruppe:")
+        for gruppe, (oppgitt, valgt) in enumerate(zip(oppgitte_tverrsnitt, profilvalg)):
+            if valgt is None:
+                valgt = oppgitt
+            print(f"  Gruppe {gruppe}: oppgitt = {oppgitt}; valgt = {valgt}")
+    else:
+        # Analyse uten å endre tverrsnittene fra inputfilen
+        profilvalg = [None] * len(geom)
+        Mval, Qval = analyser(geom, punkt, elemkonn, tvsnitt, lastdata, R)
+        sigma_M = None
 
     #-----Printer bøyespenninger for alle elementene
     print("Bøyespenninger:")
@@ -64,5 +56,68 @@ def main(input_fil="input_ramme1.txt"):
     print(Qval)
 
     return sigma_M, Mval, Qval
+
+# For å iterere gjennom tverrsnittene må vi kunne analysere hvert tversnitt:
+def analyser(geom, punkt, elemkonn, tvsnitt, lastdata, R):
+    EI = beregne_boyestivhet(geom, tvsnitt)
+    K = elementstivhetsmatrise(len(punkt), punkt, len(elemkonn), elemkonn, tvsnitt, EI)
+    Kn, Rn = bc(punkt, K, R)
+    rot = np.linalg.solve(Kn, Rn)
+    Mval = moment(rot, punkt, elemkonn, EI, lastdata)
+    Qval = shear(rot, punkt, elemkonn, EI, lastdata)
+    return Mval, Qval
+
+# Itererer gjennom tverrsnittene med oppdaterte verdier for andre arealmoment for hvert tverrsnitt,
+# slik at vi får en egen stivhetsmatrise for hvert av tverrsnittene:
+def dimensjoner_med_global_stivhet(
+    geom, punkt, elemkonn, tvsnitt, lastdata, R, maks_iterasjoner=20
+):
+    geom = np.asarray(geom, dtype=float).copy()
+    valg = [None] * len(geom)
+
+    for _ in range(maks_iterasjoner):
+        endret = False
+        for igruppe, rad in enumerate(geom):
+            elementer = np.flatnonzero(tvsnitt == igruppe)
+            if len(elementer) == 0:
+                continue
+            if not np.isfinite(rad[9]) or rad[9] <= 0:
+                raise ValueError(f"Gruppe {igruppe} mangler positiv flytespenning")
+
+            valgt = None
+            for profil in standardprofiler(rad):
+                kandidat_geom = sett_standardprofil(geom, igruppe, profil)
+                kandidat_moment, _ = analyser(
+                    kandidat_geom, punkt, elemkonn, tvsnitt, lastdata, R
+                )
+                kandidat_sigma = boyespenn(
+                    kandidat_moment, kandidat_geom, tvsnitt
+                )[elementer]
+                if np.max(np.abs(kandidat_sigma)) <= 0.7 * rad[9]:
+                    valgt = profil
+                    break
+            if valgt is None:
+                raise ValueError(
+                    f"Ingen standardprofil tilfredsstiller gruppe {igruppe}"
+                )
+
+            if valg[igruppe] != valgt[0]:
+                geom = sett_standardprofil(geom, igruppe, valgt)
+                valg[igruppe] = valgt[0]
+                endret = True
+
+        if not endret:
+            break
+    else:
+        raise RuntimeError(f"Profiliterasjonen konvergerte ikke innen {maks_iterasjoner} iterasjoner")
+
+    Mval, Qval = analyser(geom, punkt, elemkonn, tvsnitt, lastdata, R)
+    sigma = boyespenn(Mval, geom, tvsnitt)
+    for igruppe in range(len(geom)):
+        elementer = np.flatnonzero(tvsnitt == igruppe)
+        if len(elementer) and np.max(np.abs(sigma[elementer])) > 0.7 * geom[igruppe, 9]:
+            raise RuntimeError(f"Endelig profilvalg for gruppe {igruppe} tilfredsstiller ikke spenningskravet")
+    return geom, valg, Mval, Qval, sigma
+
 
 main()

@@ -8,11 +8,11 @@
 2 1 1 4
 # Antall tverrsnittsgeometrier
 4
-# GruppeID, flenshoyde, flensbredde, steghoyde, stegtykkelse, radius, ror_tykkelse, rør/I-profil = 0/1, Elastisitetsmodul, I-verdi (dersom det gjelder)
-0 0 0 0 0 0 0 0 1 10
-1 0 0 0 0 0 0 0 1 5
-2 0 0 0 0 0 0 0 1 1.4142135623730950488
-3 0 0 0 0 0 0 0 1 1
+# GruppeID, flenshoyde, flensbredde, steghoyde, stegtykkelse, diameter, ror_tykkelse, rør/I-profil = 0/1, Elastisitetsmodul, flytespenning(MPa), I-verdi (dersom det gjelder)
+0 0 0 0 0 0 0 0 1 NaN 10
+1 0 0 0 0 0 0 0 1 NaN 5
+2 0 0 0 0 0 0 0 1 NaN 1.4142135623730950488
+3 0 0 0 0 0 0 0 1 NaN 1
 # Antall element
 7
 # knutepunktID_start, knutepunktID_slutt, GruppeID

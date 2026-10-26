@@ -7,15 +7,18 @@ def _beregn_treghetsmoment(rad, igruppe):
     flensbredde = rad[2]
     steghoyde = rad[3]
     stegtykkelse = rad[4]
-    radius = rad[5]
+    diameter = rad[5]
     tykkelse = rad[6]
     profiltype = int(rad[7])
     
     if profiltype == 0:
-        if radius <= 0 or tykkelse <= 0:
-            raise ValueError(f"Gruppe {igruppe} mangler positiv radius og tykkelse for rørprofil")
+        if diameter <= 0 or tykkelse <= 0:
+            raise ValueError(f"Gruppe {igruppe} mangler positiv diameter og tykkelse for rørprofil")
         # Rørprofil
-        return (np.pi*((2*radius)**4-(2*radius-2*tykkelse)**4))/64
+        innvendig_diameter = diameter - 2 * tykkelse
+        if innvendig_diameter <= 0:
+            raise ValueError(f"Gruppe {igruppe} har for stor rørtykkelse i forhold til diameter")
+        return np.pi * (diameter**4 - innvendig_diameter**4) / 64
 
     if profiltype == 1:
         if min(flenshoyde, flensbredde, steghoyde, stegtykkelse) <= 0:
@@ -32,7 +35,7 @@ def beregne_boyestivhet(geom, tvsnitt):
 
     # geom skal ha kolonnene:
     # gruppeID, flenshøyde, flensbredde, steghøyde, stegtykkelse,
-    # radius, tykkelse, profiltype, E [MPa], I-verdi [mm^4]
+    # diameter, tykkelse, profiltype, E [MPa], flytspenning [MPa], I-verdi [mm^4]
 
     #Dersom I-verdi er større enn null, brukes denne direkte. Dersom verdien er null, beregnes treghetsmomentet fra geometrien. 
     # tvsnitt inneholder gruppe-ID-en for hvert element.
@@ -41,8 +44,8 @@ def beregne_boyestivhet(geom, tvsnitt):
     tvsnitt_raw = np.asarray(tvsnitt)
     tvsnitt = tvsnitt_raw.astype(int)
 
-    if geom.ndim != 2 or geom.shape[1] != 10:
-        raise ValueError("geom må ha nøyaktig ti kolonner i det nye tverrsnittsformatet")
+    if geom.ndim != 2 or geom.shape[1] != 11:
+        raise ValueError("geom må ha nøyaktig elleve kolonner i det nye tverrsnittsformatet")
     if tvsnitt.ndim != 1:
         raise ValueError("tvsnitt må inneholde én gruppe-ID per element")
     if not np.all(tvsnitt_raw == tvsnitt):
@@ -51,7 +54,7 @@ def beregne_boyestivhet(geom, tvsnitt):
         raise ValueError("tvsnitt inneholder en ugyldig gruppe-ID")
 
     elastisitetsmodul = geom[:, 8]
-    oppgitt_I = geom[:, 9]
+    oppgitt_I = geom[:, 10]
     if np.any(elastisitetsmodul <= 0):
         raise ValueError("Elastisitetsmodulen E må være positiv")
     if np.any(oppgitt_I < 0):

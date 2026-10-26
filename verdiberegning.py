@@ -257,8 +257,8 @@ def boyespenn(Mval, geom, tvsnitt):
         raise ValueError("Mval må ha formen (antall elementer, 3)")
     if len(tvsnitt) != len(Mval):
         raise ValueError("tvsnitt må ha én gruppe-ID per element")
-    if geom.ndim != 2 or geom.shape[1] != 10:
-        raise ValueError("geom må ha nøyaktig ti kolonner")
+    if geom.ndim != 2 or geom.shape[1] != 11:
+        raise ValueError("geom må ha nøyaktig elleve kolonner")
     if np.any(tvsnitt < 0) or np.any(tvsnitt >= len(geom)):
         raise ValueError("tvsnitt inneholder en ugyldig gruppe-ID")
 
@@ -266,11 +266,14 @@ def boyespenn(Mval, geom, tvsnitt):
     for ielem, gruppe in enumerate(tvsnitt):
         profiltype = int(geom[gruppe, 7])
         flenshoyde, flensbredde, steghoyde, stegtykkelse = geom[gruppe, 1:5]
-        radius, tykkelse = geom[gruppe, 5:7]
-        oppgitt_I = geom[gruppe, 9]
+        diameter, tykkelse = geom[gruppe, 5:7]
+        oppgitt_I = geom[gruppe, 10]
         if profiltype == 0:
-            treghetsmoment = (oppgitt_I if oppgitt_I > 0 else (np.pi*((2*radius)**4-(2*radius-2*tykkelse)**4))/64)
-            ytterfiber = radius
+            innvendig_diameter = diameter - 2 * tykkelse
+            treghetsmoment = (oppgitt_I if oppgitt_I > 0 else (
+                np.pi * (diameter**4 - innvendig_diameter**4) / 64
+            ))
+            ytterfiber = diameter / 2
         elif profiltype == 1:
             treghetsmoment = oppgitt_I if oppgitt_I > 0 else (
                 2 * (flensbredde * flenshoyde**3 / 12 + flensbredde * flenshoyde * (steghoyde / 2 + flenshoyde / 2) ** 2)
