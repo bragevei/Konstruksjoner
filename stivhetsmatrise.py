@@ -16,7 +16,9 @@ def elementstivhetsmatrise(npunkt, punkt, nelem, elemkonn, tvsnitt, EI):
         raise ValueError("EI må inneholde én verdi per element.")
     if np.any(EI <= 0):
         raise ValueError("EI må være positiv for alle elementer.")
-
+#Går gjennom elemkonn som og henter indeks i og j fra hver indeks i og j i elemkonn. Elemkonn blir tilsvarende konnektivitetstabell i koden vår.
+#Deretter ganges den med faktor som er EI/L og plasseres i indeks riktig indeks i stivhetsmatrisen K
+#Resultatet er stivhetsmatrise med EI/L faktorisert inni matrisen.
     for ielem, (i, j) in enumerate(elemkonn):
         faktor = EI[ielem] / elemlen[ielem]
         K[i, i] += 4 * faktor
