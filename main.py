@@ -10,6 +10,7 @@ from grensebetingelser import bc
 from verdiberegning import moment, shear, boyespenn
 
 
+
 def main(input_fil="input_ramme1.txt"):
     # -----Leser inputdata
     npunkt, punkt, ngeom, geom, nelem, elemkonn, tvsnitt, nlast, lastdata = lesinput(input_fil)
