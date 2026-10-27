@@ -1,31 +1,53 @@
-# Antall knutepunkt 
+# =============================================================================
+#  INPUTFIL: halvt nedsenkbar plattform fra Øving 8 (oppgave b)
+#
+#  Plattformen regnes med a = 1, p = 1 og P = 1, slik at endemomentene som
+#  skrives ut er i enheter av p*a^2 og kan sammenlignes direkte med fasit for
+#  deloppgave 2d.
+#
+#  Stivhetene er gitt som multipler av EI (10I, 5I, sqrt(2)I og I). Bare
+#  forholdet mellom dem betyr noe for momentene. Vi setter E = 0.001 MPa
+#  (= 1 kN/m^2) og I = (faktor) * 1e12 mm^4 (= faktor * 1 m^4), slik at EI blir
+#  10, 5, 1.414 og 1. Rotasjonene skrives da ut i enheter av p*a^3/(EI).
+#  Flytspenningen er satt lik 0 (ikke relevant), så spenninger beregnes ikke.
+# =============================================================================
+
+# ----- KNUTEPUNKTER ----------------------------------------------------------
+# nr   x    y    rot (0 = fastholdt, 1 = fri)
 5
-# x, y, fastholdt/fri rotasjon=0/1, knutepunktID
-0 0 1 0
-0 1 1 1
-1 1 1 2
-2 0 1 3
-2 1 1 4
-# Antall tverrsnittsgeometrier
+0      0    0    1      # venstre fot (leddlager)
+1      0    1    1      # øvre venstre hjørne
+2      1    1    1      # midt på dekket, der diagonalene møtes
+3      2    0    1      # høyre fot (leddlager)
+4      2    1    1      # øvre høyre hjørne, P virker her
+
+# ----- MATERIALER ------------------------------------------------------------
+# nr   E[MPa]   fy[MPa]
+1
+0      0.001    0
+
+# ----- TVERRSNITT ------------------------------------------------------------
+# nr type  D  t  h  b  tf  tw   I[mm^4]  (bare I er gitt)
 4
-# GruppeID, flenshoyde, flensbredde, steghoyde, stegtykkelse, diameter, ror_tykkelse, rør/I-profil = 0/1, Elastisitetsmodul, flytespenning(MPa), I-verdi (dersom det gjelder)
-0 0 0 0 0 0 0 0 1 NaN 10
-1 0 0 0 0 0 0 0 1 NaN 5
-2 0 0 0 0 0 0 0 1 NaN 1.4142135623730950488
-3 0 0 0 0 0 0 0 1 NaN 1
-# Antall element
+0   0     0  0  0  0  0   0    10e12                    # 10I  (søyler)
+1   0     0  0  0  0  0   0    5e12                     # 5I   (dekksbjelker)
+2   0     0  0  0  0  0   0    1.4142135623730951e12    # sqrt(2)I (diagonaler)
+3   0     0  0  0  0  0   0    1e12                     # I    (bunnstag)
+
+# ----- ELEMENTER -------------------------------------------------------------
+# nr  kp1  kp2  tverrsnittnr  materialnr
 7
-# knutepunktID_start, knutepunktID_slutt, GruppeID
-0 1 0
-1 2 1
-0 2 2
-2 3 2
-3 4 0
-2 4 1
-0 3 3
-# Antall laster
+0     0    1    0    0      # venstre søyle
+1     1    2    1    0      # venstre dekksbjelke
+2     0    2    2    0      # venstre diagonal
+3     2    3    2    0      # høyre diagonal
+4     3    4    0    0      # høyre søyle
+5     2    4    1    0      # høyre dekksbjelke
+6     0    3    3    0      # bunnstag
+
+# ----- LASTER ----------------------------------------------------------------
+# type  x1  y1  x2  y2  verdi1  verdi2
 3
-# fordelt last/punktlast/moment=0/1/2, x_start, y_start, x_slutt, y_slutt, laststørrelse
-0 0 1 2 1 -1
-0 0 1 1 1 -0.5
-1 2 1 0 0 -1
+0    0   1    2   1    -1     -1       # p over hele dekket
+0    0   1    1   1    -0.5   -0.5     # p/2 over venstre halvdel
+1    2   1    0   0    -1      0       # P i øvre høyre hjørne (gir ikke bøyning)

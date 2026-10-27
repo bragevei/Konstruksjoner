@@ -1,47 +1,78 @@
-# Antall knutepunkt 
+# =============================================================================
+#  INPUTFIL: rammen i figur 1 (jack-up-fartøy), oppgave c
+#  Lastdata fra tabell 1 og 2 med A = 1/3/5 og B = 1/2/3:
+#     P1 = 120 kN, alfa1 = 0.5, M1 = 275 kNm, P2 = 64 kN,
+#     q1 = 12 kN/m, q2 = 9 kN/m, q3 = 5 kN/m, q4 = 8 kN/m, q5 = 13 kN/m
+#  L1 = 18 m, L2 = 20 m, h = 12 m.  E = 210 GPa, fy = 355 MPa.
+#
+#  Enheter: m, kN, kNm, mm (tverrsnitt) og MPa (E og fy).
+#  Alt etter '#' er kommentar. Se lesinput.py for full beskrivelse av formatet.
+#
+#  Alle bjelker er definert fra venstre mot høyre og alle søyler nedenfra og
+#  opp. Da betyr positiv last "oppover" på bjelkene og "mot venstre" på
+#  søylene, og positivt moment i utskriften betyr strekk på undersiden av
+#  bjelkene og på høyre side av søylene.
+# =============================================================================
+
+# ----- KNUTEPUNKTER ----------------------------------------------------------
+# nr   x[m]   y[m]   rot (0 = fastholdt, 1 = fri)
 10
-# x, y, fastholdt/fri rotasjon=0/1, knutepunktID
-0 0 0 0
-0 12 1 1
-0 24 1 2
-0 36 1 3
-18 36 1 4
-18 24 1 5
-18 12 1 6
-38 12 1 7
-38 0 0 8
-18 0 1 9
-# Antall tverrsnittsgeometrier
+0      0      0      0      # venstre søylefot, fast innspent
+1      0     12      1
+2      0     24      1
+3      0     36      1      # øvre venstre hjørne: P2 og M1 virker her
+4     18     36      1      # C (horisontalt opplager, fri rotasjon)
+5     18     24      1      # B (horisontalt opplager, fri rotasjon)
+6     18     12      1
+7     38     12      1      # A (horisontalt opplager, fri rotasjon)
+8     38      0      0      # høyre søylefot, fast innspent
+9     18      0      1      # midtre søylefot, leddlager (fri rotasjon)
+
+# ----- MATERIALER ------------------------------------------------------------
+# nr   E[MPa]   fy[MPa]
+1
+0      210000   355
+
+# ----- TVERRSNITT (én rad per elementgruppe) -----------------------------------
+# nr type   D      t      h     b     tf    tw    I[mm^4]
+#    type 0 = rør (D, t), type 1 = I-profil (h, b, tf, tw); I = 0 -> beregnes fra målene
+# Ved dimensjonering (main(..., dimensjoner_tverrsnitt=True)) blir målene under
+# erstattet av profilene som programmet velger. Verdiene her er resultatet av
+# dimensjoneringen, slik at filen også kan brukes til en ren kontrollanalyse.
 6
-# GruppeID, flenshoyde, flensbredde, steghoyde, stegtykkelse, diameter, ror_tykkelse, rør/I-profil = 0/1, Elastisitetsmodul (MPa), flytspenning (MPa), I-verdi (mm^4, dersom det gjelder)
-0 0 0 0 0 300 50 0 210000 355 0
-1 0 0 0 0 100 10 0 210000 355 0
-2 0 0 0 0 100 10 0 210000 355 0
-3 17.5 300 315 10 0 0 1 210000 355 0
-4 16.5 300 297 9.5 0 0 1 210000 355 0
-5 19 300 352 11 0 0 1 210000 355 0
-# Antall element
+0   0   355.6  16     0     0     0     0     0     # venstre søyle  (elementer 0, 1, 2)
+1   0   219.1   8     0     0     0     0     0     # midtre søyle   (elementer 4, 5, 8)
+2   0   177.8   6.3   0     0     0     0     0     # høyre søyle    (element 7)
+3   1     0     0   330   300  16.5   9.5   0     # HEA340, øverste bjelke (element 3)
+4   1     0     0   310   300  15.5   9     0     # HEA320, bjelker på y = 12 m (elementer 6, 9)
+5   1     0     0   310   300  15.5   9     0     # HEA320, bjelke på y = 24 m (element 10)
+
+# ----- ELEMENTER -------------------------------------------------------------
+# nr  kp1  kp2  tverrsnittnr  materialnr
 11
-# knutepunktID_start, knutepunktID_slutt, GruppeID
-0 1 0
-1 2 0
-2 3 0
-3 4 3
-4 5 1
-5 6 1
-6 7 4
-7 8 2
-6 9 1
-1 6 4
-2 5 5
-# Antall laster
-8
-# jevnt fordelt last/punktlast/moment/trekantlast=0/1/2/3, x_start, y_start, x_slutt, y_slutt, laststørrelse
-0 0 12 18 12 -12
-0 0 36 18 36 -9
-0 18 12 38 12 -5
-3 0 0 0 36 -8
-3 0 36 0 0 -13
-1 9 24 0 0 -120
-1 0 36 0 0 -64
-2 0 36 0 0 -275
+0     0    1    0    0      # venstre søyle, nederst
+1     1    2    0    0      # venstre søyle, midten
+2     2    3    0    0      # venstre søyle, øverst
+3     3    4    3    0      # øverste bjelke (q2)
+4     5    4    1    0      # midtre søyle, øverst
+5     6    5    1    0      # midtre søyle, midten
+6     6    7    4    0      # nederste bjelke, høyre felt (q3)
+7     8    7    2    0      # høyre søyle
+8     9    6    1    0      # midtre søyle, nederst
+9     1    6    4    0      # nederste bjelke, venstre felt (q1)
+10    2    5    5    0      # midtre bjelke (P1)
+
+# ----- LASTER ----------------------------------------------------------------
+# type  x1  y1  x2  y2   verdi1  verdi2
+#   type 0 = fordelt last [kN/m], lineært fra verdi1 i (x1,y1) til verdi2 i (x2,y2)
+#   type 1 = punktlast [kN] i (x1,y1)
+#   type 2 = knutepunktsmoment [kNm] i (x1,y1), positivt med klokka
+#   Positiv last virker 90 grader mot klokka fra elementets retning (kp1 -> kp2).
+7
+0    0  12   18  12    -12    -12      # q1, nedover på venstre bjelke i 1. etasje
+0    0  36   18  36     -9     -9      # q2, nedover på øverste bjelke
+0   18  12   38  12     -5     -5      # q3, nedover på høyre bjelke
+0    0   0    0  36     -8    -13      # vind q4 -> q5 mot høyre (negativ lokal y for søyle som går opp)
+1    9  24    0   0   -120      0      # P1 i alfa1*L1 = 9 m, nedover
+1    0  36    0   0    -64      0      # P2 i knutepunkt 3 (gir ikke bøyning i uforskyvelig ramme)
+2    0  36    0   0   -275      0      # M1 i knutepunkt 3, mot klokka

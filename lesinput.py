@@ -1,275 +1,178 @@
+"""
+lesinput.py - leser inputfilen som beskriver rammen
+====================================================
+
+OVERORDNET TENKEMÅTE
+--------------------
+All informasjon om konstruksjonen (geometri, opplager, materialer, tverrsnitt,
+elementer og laster) ligger i en egen tekstfil, slik at samme program kan
+analysere en hvilken som helst plan, uforskyvelig ramme uten at koden endres.
+Denne modulen gjør om tekstfilen til numpy-tabeller som resten av programmet
+bruker.
+
+Inputfilen består av fem seksjoner som alltid kommer i denne rekkefølgen:
+
+    1. KNUTEPUNKTER   2. MATERIALER   3. TVERRSNITT   4. ELEMENTER   5. LASTER
+
+Hver seksjon starter med ett heltall som sier hvor mange datalinjer som
+følger, og deretter kommer én linje per knutepunkt/material/tverrsnitt/
+element/last. Fordi antallet leses fra filen, kan programmet håndtere et
+vilkårlig antall av hver type. Alt etter tegnet '#' er kommentar, og tomme
+linjer hoppes over.
+
+Kolonner i hver seksjon (enheter i hakeparentes):
+
+    KNUTEPUNKTER : nr  x[m]  y[m]  rot
+                   rot = 0: rotasjonen er fastholdt (fast innspent)
+                   rot = 1: rotasjonen er fri (ledd eller vanlig rammehjørne)
+    MATERIALER   : nr  E[MPa]  fy[MPa]
+    TVERRSNITT   : nr  type  D  t  h  b  tf  tw  I
+                   type 0 = rørprofil: D = ytre diameter, t = veggtykkelse [mm]
+                   type 1 = I-profil : h = total høyde, b = flensbredde,
+                                       tf = flenstykkelse, tw = stegtykkelse [mm]
+                   Mål som ikke brukes av profiltypen settes lik 0.
+                   I [mm^4]: settes normalt lik 0, og da beregnes 2. arealmoment
+                   fra målene. Er I > 0 brukes den oppgitte verdien direkte
+                   (nyttig i oppgave b der stivhetene er gitt som 10I, 5I, ...).
+    ELEMENTER    : nr  knutepunkt1  knutepunkt2  tverrsnittnr  materialnr
+                   Elementet kobles til riktig geometri og material via
+                   tverrsnittnummeret og materialnummeret.
+    LASTER       : type  x1  y1  x2  y2  verdi1  verdi2
+                   type 0 = fordelt last [kN/m] som varierer lineært fra verdi1
+                            i punktet (x1,y1) til verdi2 i punktet (x2,y2).
+                            Jevnt fordelt last: verdi1 = verdi2.
+                            Lasten må starte og slutte i knutepunkter, men kan
+                            gå over flere elementer som ligger på linje.
+                   type 1 = punktlast [kN] med størrelse verdi1 i punktet (x1,y1).
+                            Punktet kan ligge hvor som helst på et element.
+                   type 2 = ytre knutepunktsmoment [kNm] med størrelse verdi1
+                            i knutepunktet (x1,y1). Positivt med klokka.
+                   Kolonner som ikke brukes av lasttypen settes lik 0.
+                   Fortegn for laster av type 0 og 1: positiv last virker i
+                   elementets lokale y-retning, dvs. 90 grader MOT klokka fra
+                   elementets retning (knutepunkt1 -> knutepunkt2). For en
+                   bjelke definert fra venstre mot høyre er positiv last
+                   altså rettet OPPOVER, og for en søyle definert nedenfra og
+                   opp er positiv last rettet mot VENSTRE.
+
+Nummeret i første kolonne (nr) må være 0, 1, 2, ... i rekkefølge. Python
+teller fra 0, så nummeret er samtidig radindeksen som brukes i resten av
+programmet. Nummeret står i filen for at den skal være lett å lese og
+kontrollere mot skissen av diskretiseringen.
+
+Alle tabellene beholder samme kolonnerekkefølge som i inputfilen. For at koden
+skal være lett å lese, brukes navngitte kolonneindekser (P_X, G_TYPE, osv.)
+i stedet for "magiske" tall. Disse importeres av de andre modulene.
+"""
+
 import numpy as np
 
-### De øverste funksjonene og variablene brukes for å finne det rette
-_HEA_PROFILER = (
-    ("HEA100", 96, 100, 5, 8),
-    ("HEA120", 114, 120, 5, 8),
-    ("HEA140", 133, 140, 5.5, 8.5),
-    ("HEA160", 152, 160, 6, 9),
-    ("HEA180", 171, 180, 6, 9.5),
-    ("HEA200", 190, 200, 6.5, 10),
-    ("HEA220", 210, 220, 7, 11),
-    ("HEA240", 230, 240, 7.5, 12),
-    ("HEA260", 250, 260, 7.5, 12.5),
-    ("HEA280", 270, 280, 8, 13),
-    ("HEA300", 290, 300, 8.5, 14),
-    ("HEA320", 310, 300, 9, 15.5),
-    ("HEA340", 330, 300, 9.5, 16.5),
-    ("HEA360", 350, 300, 10, 17.5),
-    ("HEA400", 390, 300, 11, 19),
-    ("HEA450", 440, 300, 11.5, 21),
-    ("HEA500", 490, 300, 12, 23),
-    ("HEA600", 590, 300, 13, 25),
-    ("HEA700", 690, 300, 14.5, 32),
-    ("HEA800", 790, 300, 15, 35.5),
-)
+# ---------------------------------------------------------------------------
+# Navngitte kolonneindekser for tabellene som returneres av lesinput()
+# ---------------------------------------------------------------------------
+# punkt: nr, x, y, rot
+P_X, P_Y, P_ROT = 1, 2, 3
+# mat: nr, E, fy
+M_E, M_FY = 1, 2
+# geom: nr, type, D, t, h, b, tf, tw, I
+G_TYPE, G_D, G_T, G_H, G_B, G_TF, G_TW, G_I = 1, 2, 3, 4, 5, 6, 7, 8
+# elem: nr, knutepunkt1, knutepunkt2, tverrsnittnr, materialnr
+E_N1, E_N2, E_GEOM, E_MAT = 1, 2, 3, 4
+# last: type, x1, y1, x2, y2, verdi1, verdi2
+L_TYPE, L_X1, L_Y1, L_X2, L_Y2, L_V1, L_V2 = 0, 1, 2, 3, 4, 5, 6
 
-_ROR_PROFILER = tuple(
-    (f"ROR{diameter}x{tykkelse}", diameter, tykkelse)
-    for diameter in (48.3, 60.3, 76.1, 88.9, 101.6, 114.3, 139.7, 168.3,
-                     177.8, 193.7, 219.1, 244.5, 273, 323.9, 355.6, 406.4,
-                     457, 508, 609.6)
-    for tykkelse in (2.3, 2.6, 3.2, 4, 5, 6.3, 8, 10, 12.5, 14.2, 16, 20, 25, 30, 40)
-    if 2 * tykkelse < diameter and diameter/tykkelse < 30   # Sørger for at indre diameter ikke blir for liten, og at røret oppfyller D/t < 30
-)
+# Profiltyper og lasttyper (samme tall som i inputfilen)
+ROR, IPROFIL = 0, 1
+FORDELT, PUNKT, MOMENT = 0, 1, 2
 
 
-def _profilens_treghetsmoment(profil):
-    if profil[0].startswith("HEA"):
-        _, h, b, tw, tf = profil
-        return 2 * (b * tf**3 / 12 + b * tf * (h / 2 - tf / 2)**2) + tw * (h - 2 * tf)**3 / 12
-    _, diameter, tykkelse = profil
-    return np.pi * (diameter**4 - (diameter - 2 * tykkelse)**4) / 64
+def _les_datalinjer(filnavn):
+    """Leser filen og returnerer en liste med datalinjer, der hver datalinje
+    er en liste med tekstbiter (tall). Kommentarer og tomme linjer fjernes."""
+    datalinjer = []
+    with open(filnavn, "r", encoding="utf-8") as fil:
+        for linjenr, linje in enumerate(fil, start=1):
+            tekst = linje.split("#", 1)[0]        # fjern alt etter '#'
+            biter = tekst.split()                 # del opp på mellomrom/tab
+            if biter:                             # hopp over tomme linjer
+                datalinjer.append((linjenr, biter))
+    return datalinjer
 
 
-def standardprofiler(rad):
-    #Returnerer standardprofilene som passer til tverrsnittstypen
-    return _HEA_PROFILER if int(rad[7]) == 1 else _ROR_PROFILER
+def lesinput(filnavn):
+    """
+    Leser inputfilen og returnerer modellen som numpy-tabeller.
 
-def profilens_ytterfiber(profil):
-    return profil[1] / 2
+    Returnerer (i samme rekkefølge som seksjonene i filen):
+        npunkt, punkt : antall knutepunkter og tabell (npunkt x 4)
+        nmat, mat     : antall materialer og tabell (nmat x 3)
+        ngeom, geom   : antall tverrsnitt og tabell (ngeom x 9)
+        nelem, elem   : antall elementer og heltallstabell (nelem x 5)
+        nlast, last   : antall laster og tabell (nlast x 7)
+    """
+    datalinjer = _les_datalinjer(filnavn)
+    posisjon = 0   # hvilken datalinje vi har kommet til
 
-def sett_standardprofil(geom, igruppe, profil):
-    #Setter én standardprofil inn i en geometrimatrisekopi
-    resultat = np.asarray(geom, dtype=float).copy()
-    if profil[0].startswith("HEA"):
-        _, h, b, tw, tf = profil
-        resultat[igruppe, 1:5] = (tf, b, h - 2 * tf, tw)
-    else:
-        _, diameter, tykkelse = profil
-        resultat[igruppe, 5:7] = (diameter, tykkelse)
-    resultat[igruppe, 10] = _profilens_treghetsmoment(profil)
-    return resultat
-
-def tverrsnittnavn(geom):
-    #Returnerer en lesbar beskrivelse av hvert oppgitt tverrsnitt
-    geom = np.asarray(geom, dtype=float)
-    if geom.ndim != 2 or geom.shape[1] != 11:
-        raise ValueError("geom må ha elleve kolonner for tverrsnittsbeskrivelse")
-
-    navn = []
-    for rad in geom:
-        if int(rad[7]) == 0:
-            navn.append(f"ROR{rad[5]:g}x{rad[6]:g}")
-        elif int(rad[7]) == 1:
-            navn.append(
-                f"I-profil h={rad[1]:g}, b={rad[2]:g}, "
-                f"h_steg={rad[3]:g}, t_steg={rad[4]:g}"
-            )
-        else:
-            raise ValueError(f"Ukjent tverrsnittstype {rad[7]:g}")
-    return navn
-
-def dimensjoner_tverrsnitt(geom, tvsnitt, Mval):
-    # Velger minste standardprofil som holder bøyespenningen under 0,7 fy.
-
-    # Mval skal ha momentene ved elementstart, kontrollpunkt og elements slutt i kNm.
-    # Geometrien returneres i samme format som input, med valgte mål og I-verdi i mm-enheter.
-    # Returverdiens valg inneholder profilnavn per tverrsnittsgruppe.
-
-    geom = np.asarray(geom, dtype=float)
-    tvsnitt = np.asarray(tvsnitt, dtype=int)
-    Mval = np.asarray(Mval, dtype=float)
-    if geom.ndim != 2 or geom.shape[1] != 11:
-        raise ValueError("geom må ha elleve kolonner for profilvalg")
-    if Mval.ndim != 2 or Mval.shape[1] != 3 or len(Mval) != len(tvsnitt):
-        raise ValueError("Mval må ha formen (antall elementer, 3)")
-    if np.any(tvsnitt < 0) or np.any(tvsnitt >= len(geom)):
-        raise ValueError("tvsnitt inneholder en ugyldig gruppe-ID")
-
-    resultat = geom.copy()
-    valg = []
-    for igruppe, rad in enumerate(geom):
-        elementer = np.flatnonzero(tvsnitt == igruppe)
-        if len(elementer) == 0:
-            valg.append(None)
-            continue
-        flytspenning = rad[9]
-        if not np.isfinite(flytspenning) or flytspenning <= 0:
-            raise ValueError(f"Gruppe {igruppe} mangler positiv flytespenning")
-        maks_moment = float(np.max(np.abs(Mval[elementer])))
-        tillatt = 0.7 * flytspenning
-        profiler = _HEA_PROFILER if int(rad[7]) == 1 else _ROR_PROFILER
-        valgt = None
-        for profil in profiler:
-            treghetsmoment = _profilens_treghetsmoment(profil)
-            ytterfiber = (profil[1] / 2) if profil[0].startswith("HEA") else profil[1] / 2
-            spenning = maks_moment * 1e6 * ytterfiber / treghetsmoment
-            if spenning <= tillatt:
-                valgt = (profil, treghetsmoment)
-                break
-        if valgt is None:
-            raise ValueError(f"Ingen standardprofil tilfredsstiller gruppe {igruppe}")
-
-        profil, treghetsmoment = valgt
-        if profil[0].startswith("HEA"):
-            _, h, b, tw, tf = profil
-            resultat[igruppe, 1:5] = (tf, b, h - 2 * tf, tw)
-        else:
-            resultat[igruppe, 5] = profil[1]
-            resultat[igruppe, 6] = profil[2]
-        resultat[igruppe, 9] = flytspenning
-        resultat[igruppe, 10] = treghetsmoment
-        valg.append(profil[0])
-    return resultat, valg
-
-
-def _neste_linjer(linjer, antall, seksjon):
-    #Leser et gitt antall datalinjer fra inputfilen
-    data = []
-    while len(data) < antall:
+    def les_seksjon(navn, nkolonner, har_nummer=True):
+        """Leser én seksjon: først antallet, deretter like mange datalinjer.
+        Kontrollerer antall kolonner, at alt er tall og at nr = 0, 1, 2, ..."""
+        nonlocal posisjon
+        if posisjon >= len(datalinjer):
+            raise ValueError(f"Inputfilen slutter før seksjonen '{navn}'.")
+        linjenr, biter = datalinjer[posisjon]
         try:
-            linje = next(linjer)
-        except StopIteration as feil:
-            raise ValueError(f"Inputfilen mangler data i seksjonen '{seksjon}'") from feil
+            antall = int(biter[0])
+        except ValueError:
+            raise ValueError(f"Linje {linjenr}: forventet antall {navn}, fant '{biter[0]}'")
+        posisjon += 1
 
-        linje = linje.split("#", 1)[0].strip()
-        if linje:
-            data.append(linje.split())
+        rader = []
+        for _ in range(antall):
+            if posisjon >= len(datalinjer):
+                raise ValueError(f"Inputfilen mangler datalinjer i seksjonen '{navn}'")
+            linjenr, biter = datalinjer[posisjon]
+            if len(biter) != nkolonner:
+                raise ValueError(f"Linje {linjenr} ({navn}): forventet {nkolonner} "
+                                 f"tall, fant {len(biter)}.")
+            try:
+                rader.append([float(b) for b in biter])
+            except ValueError:
+                raise ValueError(f"Linje {linjenr} ({navn}): inneholder noe som ikke er et tall")
+            posisjon += 1
 
-    return data
+        tabell = np.array(rader, dtype=float).reshape(antall, nkolonner)
+        # Nummeret i første kolonne skal være 0, 1, 2, ... slik at det er lik radindeksen
+        if har_nummer and not np.array_equal(tabell[:, 0], np.arange(antall)):
+            raise ValueError(f"Seksjonen '{navn}' må nummereres 0, 1, 2, ... i rekkefølge")
+        return antall, tabell
 
+    # --- De fem seksjonene leses i fast rekkefølge -------------------------
+    npunkt, punkt = les_seksjon("knutepunkter", 4)
+    nmat, mat = les_seksjon("materialer", 3)
+    ngeom, geom = les_seksjon("tverrsnitt", 9)
+    nelem, elem = les_seksjon("elementer", 5)
+    nlast, last = les_seksjon("laster", 7, har_nummer=False)
 
-def _antall(linjer, seksjon):
-    #Leser neste heltall fra inputfilen
-    try:
-        linje = next(linjer)
-    except StopIteration as feil:
-        raise ValueError(f"Inputfilen mangler antall for seksjonen '{seksjon}'") from feil
+    if posisjon != len(datalinjer):
+        linjenr = datalinjer[posisjon][0]
+        raise ValueError(f"Linje {linjenr}: inputfilen inneholder flere datalinjer enn "f"antallene i seksjonene tilsier")
 
-    linje = linje.split("#", 1)[0].strip()
-    while not linje:
-        try:
-            linje = next(linjer).split("#", 1)[0].strip()
-        except StopIteration as feil:
-            raise ValueError(f"Inputfilen mangler antall for seksjonen '{seksjon}'") from feil
+    # --- Kontroller som fanger vanlige tastefeil i inputfilen ---------------
+    if not np.all(np.isin(punkt[:, P_ROT], (0, 1))):
+        raise ValueError("Rotasjonsbetingelsen for knutepunkter må være 0 (fast) eller 1 (fri)")
+    if not np.all(np.isin(geom[:, G_TYPE], (ROR, IPROFIL))):
+        raise ValueError("Tverrsnittstypen må være 0 (rør) eller 1 (I-profil)")
+    if nlast and not np.all(np.isin(last[:, L_TYPE], (FORDELT, PUNKT, MOMENT))):
+        raise ValueError("Lasttypen må være 0 (fordelt), 1 (punktlast) eller 2 (moment)")
 
-    try:
-        verdi = int(linje)
-    except ValueError as feil:
-        raise ValueError(f"Antallet i seksjonen '{seksjon}' må være et heltall.") from feil
+    # Elementtabellen inneholder bare heltall (nummer), så den lagres som int.
+    # Da kan den brukes direkte som indekser i de andre tabellene.
+    if not np.all(elem == np.round(elem)):
+        raise ValueError("Elementtabellen kan bare inneholde heltall")
+    elem = elem.astype(int)
+    for kolonne, antall, navn in ((E_N1, npunkt, "knutepunkt"), (E_N2, npunkt, "knutepunkt"),
+                                  (E_GEOM, ngeom, "tverrsnitt"), (E_MAT, nmat, "material")):
+        if np.any(elem[:, kolonne] < 0) or np.any(elem[:, kolonne] >= antall):
+            raise ValueError(f"Et element refererer til et {navn}nummer som ikke finnes")
 
-    if verdi < 0:
-        raise ValueError(f"Antallet i seksjonen '{seksjon}' kan ikke være negativt")
-    return verdi
-
-
-def _tabell(data, kolonner, seksjon):
-    #Konverterer rader til en numerisk tabell med riktig antall kolonner
-    if not data:
-        return np.empty((0, kolonner), dtype=float)
-
-    for rad in data:
-        if len(rad) != kolonner:
-            raise ValueError(f"Seksjonen '{seksjon}' må ha {kolonner} kolonner per rad")
-
-    try:
-        return np.asarray(data, dtype=float)
-    except ValueError as feil:
-        raise ValueError(f"Seksjonen '{seksjon}' inneholder en verdi som ikke er numerisk") from feil
-
-
-def lesinput(input_fil):
-    # Leser rammedata fra input fil.
-
-    # Returnerer antall og data i samme rekkefølge som i inputfilen:
-    # npunkt, punkt, ngeom, geom, nelem, elemkonn, tvsnitt, nlast, lastdata
-
-    # punkt inneholder x-koordinat, y-koordinat, fastholdingsbetingelse og knutepunkt-ID. 
-    # geom inneholder gruppe-ID og tverrsnittsdata, inkludert flytspenning.
-    # tvsnitt inneholder E-modul og gruppe-ID per element. lastdata inneholder
-    # lasttype, koordinater og laststørrelse, der lasttype 3 er trekantlast
-    # med maksimum i startpunktet og null i sluttpunktet.
-    
-    try:
-        with open(input_fil, "r", encoding="utf-8") as fil:
-            linjer = iter(fil)
-
-            npunkt = _antall(linjer, "knutepunkter")
-            punkt = _tabell(_neste_linjer(linjer, npunkt, "knutepunkter"), 4, "knutepunkter",)
-
-            ngeom = _antall(linjer, "tverrsnittsgeometrier")
-            geomdata = _neste_linjer(linjer, ngeom, "tverrsnittsgeometrier")
-            kolonner = len(geomdata[0]) if geomdata else 11
-            if kolonner not in (10, 11) or any(len(rad) != kolonner for rad in geomdata):
-                raise ValueError("Seksjonen 'tverrsnittsgeometrier' må ha 10 eller 11 kolonner per rad")
-            geom = _tabell(geomdata, kolonner, "tverrsnittsgeometrier")
-            if kolonner == 10:
-                geom = np.insert(geom, 9, np.nan, axis=1)
-
-            nelem = _antall(linjer, "elementer")
-            elem = _tabell(_neste_linjer(linjer, nelem, "elementer"), 3, "elementer",)
-
-            nlast = _antall(linjer, "laster")
-            lastdata = _tabell(_neste_linjer(linjer, nlast, "laster"), 6, "laster",)
-
-    except OSError as feil:
-        raise OSError(f"Kunne ikke åpne inputfilen '{input_fil}'") from feil
-
-    lasttyper = lastdata[:, 0].astype(int) if nlast else np.empty(0, dtype=int)
-    if nlast and not np.all(lastdata[:, 0] == lasttyper):
-        raise ValueError("Lasttype må være et heltall.")
-    ugyldige_lasttyper = sorted(set(lasttyper) - {0, 1, 2, 3})
-    if ugyldige_lasttyper:
-        raise ValueError(f"Ukjent lasttype {ugyldige_lasttyper[0]}; bruk 0, 1, 2 eller 3.")
-
-    # Interne beregninger bruker radindekser. Inputfilen kan bruke vilkårlige,
-    # men unike ID-er, så oversett disse én gang her.
-    node_ids_raw = elem[:, 0:2]
-    punkt_ids_raw = punkt[:, 3]
-    group_ids_raw = geom[:, 0]
-    if not np.all(node_ids_raw == node_ids_raw.astype(int)):
-        raise ValueError("Knutepunkt-ID-er i elementtabellen må være heltall")
-    if not np.all(punkt_ids_raw == punkt_ids_raw.astype(int)):
-        raise ValueError("Knutepunkt-ID-er må være heltall")
-    if not np.all(group_ids_raw == group_ids_raw.astype(int)):
-        raise ValueError("Tverrsnittsgruppe-ID-er må være heltall")
-    if not np.all(elem[:, 2] == elem[:, 2].astype(int)):
-        raise ValueError("Tverrsnittsgruppe-ID-er i elementtabellen må være heltall")
-
-    node_ids = node_ids_raw.astype(int)
-    punkt_ids = punkt_ids_raw.astype(int)
-    if len(np.unique(punkt_ids)) != len(punkt_ids):
-        raise ValueError("Knutepunkt-ID-ene må være unike")
-    node_index = {node_id: index for index, node_id in enumerate(punkt_ids)}
-    try:
-        elemkonn = np.asarray([[node_index[start], node_index[slutt]] for start, slutt in node_ids],dtype=int,)
-    except KeyError as feil:
-        raise ValueError(
-            f"Elementene refererer til ukjent knutepunkt-ID {feil.args[0]}"
-        ) from feil
-
-    group_ids = group_ids_raw.astype(int)
-    if len(np.unique(group_ids)) != len(group_ids):
-        raise ValueError("Tverrsnittsgruppe-ID-ene må være unike. ")
-    group_index = {group_id: index for index, group_id in enumerate(group_ids)}
-    try:
-        tvsnitt = np.asarray([group_index[group_id] for group_id in elem[:, 2].astype(int)], dtype=int, )
-    except KeyError as feil:
-        raise ValueError(f"Elementene refererer til ukjent tverrsnittsgruppe-ID {feil.args[0]}") from feil
-
-    # Resten av programmet bruker radindeksen som systemindeks.
-    punkt = punkt.copy()
-    punkt[:, 3] = np.arange(npunkt)
-
-    return npunkt, punkt, ngeom, geom, nelem, elemkonn, tvsnitt, nlast, lastdata
+    return npunkt, punkt, nmat, mat, ngeom, geom, nelem, elem, nlast, last

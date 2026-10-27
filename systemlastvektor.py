@@ -1,251 +1,186 @@
+"""
+systemlastvektor.py - laster, fastinnspenningsmomenter og systemlastvektor
+==========================================================================
+
+OVERORDNET TENKEMÅTE
+--------------------
+Rammen er uforskyvelig, så de eneste ukjente er knutepunktsrotasjonene.
+Lastene påvirker likningssystemet K*r = R på to måter:
+
+  1) Laster PÅ elementene (fordelte laster og punktlaster). Vi tenker oss
+     først at begge elementendene er fast innspent (r = 0). Da oppstår
+     fastinnspenningsmomentene (FIM), som samles i elementlastvektoren
+     S_fim = [M1_fim, M2_fim] for hvert element.
+  2) Ytre moment som virker direkte i et knutepunkt (f.eks. M1 fra kranen).
+
+Momentlikevekt i et knutepunkt gir at summen av elementenes endemomenter er
+lik det ytre momentet i knutepunktet. Endemomentet i et element er
+M = k*r + S_fim, slik at likevekt for hele systemet blir
+
+        K * r = R,    der   R = (ytre knutepunktsmomenter) - (sum av S_fim)
+
+Summen av S_fim bygges opp ("assembleres") ved hjelp av konnektivitets-
+tabellen: element-ende 1 hører til knutepunkt elem[ielem, E_N1] og ende 2 til
+elem[ielem, E_N2].
+
+Fortegnskonvensjon (som i TMR4167): Rotasjoner og endemomenter er positive
+MED klokka. Laster er positive i elementets lokale y-retning (90 grader mot
+klokka fra elementaksen, dvs. oppover for en bjelke definert fra venstre mot
+høyre).
+
+Merk at lastvektoren bare avhenger av lastene og elementlengdene, ikke av
+tverrsnittene. Den beregnes derfor bare én gang, også når tverrsnittene
+endres under dimensjoneringen.
+"""
 
 import numpy as np
 
-def _lokal_posisjon(x, y, start, slutt, lengde):
-    #Returnerer avstanden fra elementstart til punktet (x, y)
-    vektor=slutt-start
-    return float(np.dot(np.array([x, y])-start, vektor)/lengde)
-
-def _kraftkoeffisienter(s, lengde):
-    # Koeffisienter for en oppoverrettet kraftlast i avstand s fra
-    # elementstart. Rotasjon er positiv medurs, derfor kommer fortegnet
-    # motsatt av fortegnet for en positiv vertikal forskyvning.
-    return (-(s - 2.0 * s**2 / lengde + s**3 / lengde**2), -(-s**2 / lengde + s**3 / lengde**2),)
-
-def _momentkoeffisienter(s, lengde):
-    #Koeffisienter for et ytre moment i avstand s fra elementstart.
-    r = s / lengde
-    return 1.0 - 4.0*r + 3.0*r**2, -2.0*r + 3.0*r**2
+from lesinput import (P_X, P_Y, E_N1, E_N2, L_TYPE, L_X1, L_Y1, L_X2, L_Y2,
+                      L_V1, L_V2, FORDELT, PUNKT, MOMENT)
 
 
-def _lastintegraler(a, b, lengde, startverdi, sluttverdi):
-    # Integraler av en lineært varierende last mot bjelkefunksjonene
-    if b <= a:
-        return 0.0, 0.0
+def fordel_laster(last, nlast, punkt, npunkt, elem, nelem, elemlen, toleranse=1e-6):
+    """
+    Finner hvilket element (eller knutepunkt) hver last i inputfilen virker på,
+    og uttrykker lasten i elementets lokale koordinater.
 
-    lengde_last = b - a
-    q_stigning = (sluttverdi - startverdi) / lengde_last
-    q_konstant = startverdi - q_stigning * a
+    Lastene er gitt med globale koordinater i inputfilen. For hvert element
+    regner vi ut enhetsvektoren e langs elementet (fra knutepunkt 1 til 2) og
+    normalvektoren n (90 grader mot klokka, lokal y-akse). Et punkt p ligger
+    på elementet dersom avstanden normalt på elementet, |(p - p1)*n|, er null
+    og avstanden langs elementet, s = (p - p1)*e, ligger mellom 0 og L.
 
-    def integral_maktall(makt):
-        return (b ** (makt + 1) - a ** (makt + 1)) / (makt + 1)
+    Returnerer:
+        fordelt     : (nelem x 2) lastintensitet [kN/m] i ende 1 og ende 2 av
+                      hvert element, lineært varierende mellom endene.
+        punktlaster : liste med én liste per element, med (a, P) for hver
+                      punktlast, der a [m] er avstanden fra ende 1.
+        knutemom    : (npunkt) ytre moment [kNm] i hvert knutepunkt.
+    """
+    xy = punkt[:, [P_X, P_Y]]
+    p1 = xy[elem[:, E_N1]]                       # startpunkt for hvert element
+    e = (xy[elem[:, E_N2]] - p1) / elemlen[:, None]   # enhetsvektor langs elementet
+    n = np.column_stack((-e[:, 1], e[:, 0]))     # lokal y-akse (90 grader mot klokka)
 
-    i1 = (q_konstant * (integral_maktall(1) - 2.0 * integral_maktall(2) / lengde + integral_maktall(3) / lengde**2)
-        + q_stigning * (integral_maktall(2) - 2.0 * integral_maktall(3) / lengde + integral_maktall(4) / lengde**2))
-    i2 = (q_konstant * (-integral_maktall(2) / lengde + integral_maktall(3) / lengde**2)
-        + q_stigning * (-integral_maktall(3) / lengde+ integral_maktall(4) / lengde**2))
-    return i1, i2
+    fordelt = np.zeros((nelem, 2))
+    punktlaster = [[] for _ in range(nelem)]
+    knutemom = np.zeros(npunkt)
 
-def elemlast(lastdata, punkt, elemkonn, toleranse=1e-8):
-    # Beregner S_fim for alle elementer.
+    for ilast in range(nlast):
+        lasttype = int(last[ilast, L_TYPE])
+        pa = last[ilast, [L_X1, L_Y1]]           # lastens (start)punkt
+        pb = last[ilast, [L_X2, L_Y2]]           # lastens sluttpunkt (bare type 0)
+        v1, v2 = last[ilast, L_V1], last[ilast, L_V2]
 
-    # Parametere
-    # ----------
-    #   lastdata : array_like, shape (nlast, 6)
-    #       Rader med lasttype, x_start, y_start, x_slutt, y_slutt, laststorrelse.
-    #       Lasttype 0 er konstant fordelt last, 1 er punktlast,
-    #       2 er et påført moment og 3 er trekantlast.
-    #   punkt : array_like, shape (npunkt, 4)
-    #       Knutepunktdata. De to første kolonnene er x- og y-koordinater.
-    #   elemkonn : array_like, shape (nelem, 2)
-    #       Elementenes start- og sluttknutepunkt.
-    #   toleranse : float
-    #       Tillatt avvik ved kontroll av at en last ligger på et element.
+        if lasttype == MOMENT:
+            # Et ytre moment kan kun virke i et knutepunkt og legges så rett inn i R
+            treff = np.flatnonzero(np.linalg.norm(xy - pa, axis=1) <= toleranse)
+            if len(treff) != 1:
+                raise ValueError(f"Last {ilast}: momentet må virke i et knutepunkt")
+            knutemom[treff[0]] += v1
 
-    # Returnerer
-    # ----------
-    #   numpy.ndarray, shape (nelem, 2)
-    #       Fastinnspenningsmomentene ved elementstart og elements slutt.
-    #       S_fim er motsatt fortegn av den ekvivalente lasten, slik at den kan adderes til systemlastvektoren.
-
-    punkt=np.asarray(punkt, dtype=float)
-    elemkonn=np.asarray(elemkonn, dtype=int)
-    lastdata=np.asarray(lastdata, dtype=float)
-
-    if lastdata.size==0:
-        return np.zeros((len(elemkonn), 2), dtype=float)
-    if lastdata.ndim !=2 or lastdata.shape[1] !=6:
-        raise ValueError("Lastdata må ha seks kolonner")
-
-    node_coordinates={int(node_id): coordinates[:2] for coordinates, node_id in zip(punkt, punkt[:, 3])}
-    sfim=np.zeros((len(elemkonn), 2), dtype=float)
-
-    for ilast, last in enumerate(lastdata):
-        lasttype = int(last[0])
-        if lasttype not in (0, 1, 2, 3) or lasttype != last[0]:
-            raise ValueError(f"Ukjent lasttype {last[0]:g} på lastlinje {ilast + 1}")
-        start_last = last[1:3]
-        slutt_last = last[3:5]
-        storrelse = last[5]
-        lastvektor = slutt_last - start_last
-        lastlengde = np.linalg.norm(lastvektor)
-        if lasttype == 3 and lastlengde <= toleranse:
-            raise ValueError(f"Trekantlast på lastlinje {ilast + 1} må ha ulikt start- og sluttpunkt")
-        treff = []
-
-        for ielem, (inode, jnode) in enumerate(elemkonn):
-            try:
-                start = node_coordinates[inode]
-                slutt = node_coordinates[jnode]
-            except KeyError as feil:
-                raise ValueError(f"Element {ielem} refererer til ukjent knutepunkt {feil.args[0]}") from feil
-            elementvektor = slutt - start
-            lengde = np.linalg.norm(elementvektor)
-            if lengde == 0:
-                raise ValueError(f"Element {ielem} har lengde lik null")
-
-            a = _lokal_posisjon(*start_last, start, slutt, lengde)
-            punkt_paa_element = start + a * elementvektor / lengde
-            avstand_start = np.linalg.norm(start_last - punkt_paa_element)
-
-            if lasttype in (1, 2):
-                if (avstand_start <= toleranse and -toleranse <= a <= lengde + toleranse):
-                    treff.append((ielem, a, a, lengde))
+        elif lasttype == PUNKT:
+            # Avstand langs (s) og normalt på (d) hvert element, regnet fra elementets ende 1
+            # Prikkproduktet tas rad for rad med einsum.
+            s = np.einsum("ij,ij->i", pa - p1, e)
+            d = np.abs(np.einsum("ij,ij->i", pa - p1, n))
+            paa_element = (d <= toleranse) & (s >= -toleranse) & (s <= elemlen + toleranse)
+            if not np.any(paa_element):
+                raise ValueError(f"Last {ilast}: punktlasten ligger ikke på noe element.")
+            i_knutepunkt = paa_element & ((s <= toleranse) | (s >= elemlen - toleranse))
+            if np.any(i_knutepunkt):
+                # En punktlast rett i et knutepunkt gir ingen bøyning i en uforskyvelig ramme.
+                # Den påvriker kun elementenes aksialkraft og opplagrene, 
+                # og har derfor ingen påvirkning på rotasjonene eller momentene
                 continue
+            ielem = np.flatnonzero(paa_element)[0]   # punktet ligger inne på ett element
+            punktlaster[ielem].append((s[ielem], v1))
 
-            b = _lokal_posisjon(*slutt_last, start, slutt, lengde)
-            punkt_paa_element = start + b * elementvektor / lengde
-            if (np.linalg.norm(np.cross(elementvektor, start_last - start)) / lengde <= toleranse
-                and np.linalg.norm(np.cross(elementvektor, slutt_last - start)) / lengde <= toleranse
-                and max(0.0, min(a, b)) <= min(lengde, max(a, b)) + toleranse):
-                    overlapp_start = max(0.0, min(a, b))
-                    overlapp_slutt = min(lengde, max(a, b))
-                    if lasttype == 3:
-                        enhetsvektor = elementvektor / lengde
-                        punkt_start = start + overlapp_start * enhetsvektor
-                        punkt_slutt = start + overlapp_slutt * enhetsvektor
-                        q_start = storrelse * (1.0 - np.dot(punkt_start - start_last, lastvektor) / lastlengde**2)
-                        q_slutt = storrelse * (1.0 - np.dot(punkt_slutt - start_last, lastvektor) / lastlengde**2)
-                        treff.append((ielem, overlapp_start, overlapp_slutt, lengde, q_start, q_slutt,))
-                    else:
-                        treff.append((ielem, overlapp_start, overlapp_slutt, lengde,))
+        elif lasttype == FORDELT:
+            # Lasten går langs linjen fra pa til pb. Den kan dekke flere elementer som ligger på linje 
+            # (f.eks. vindlasten over hele den venstre søylen). Hvert element som ligger på linjen får lasten
+            # over hele sin lengde, med intensitet funnet ved lineær interpolasjon mellom v1 (i pa) og v2 (i pb).
+            lastlengde = np.linalg.norm(pb - pa)
+            if lastlengde <= toleranse:
+                raise ValueError(f"Last {ilast}: fordelt last må ha ulikt start- og sluttpunkt")
+            u = (pb - pa) / lastlengde                       # retning langs lasten
+            u_n = np.array([-u[1], u[0]])                    # normal til lastlinjen
+            dekket_lengde = 0.0
+            for ielem in range(nelem):
+                ende1, ende2 = p1[ielem], p1[ielem] + e[ielem] * elemlen[ielem]
+                # Ligger begge elementendene på den uendelige linjen gjennom pa og pb?
+                if abs((ende1 - pa) @ u_n) > toleranse or abs((ende2 - pa) @ u_n) > toleranse:
+                    continue
+                t1, t2 = (ende1 - pa) @ u, (ende2 - pa) @ u  # posisjon langs lastlinjen
+                # Lengden av overlappet mellom elementet og lasten:
+                overlapp = min(max(t1, t2), lastlengde) - max(min(t1, t2), 0.0)
+                if overlapp <= toleranse:
+                    continue      # elementet ligger utenfor lasten (eller berører bare et endepunkt)
+                if overlapp < elemlen[ielem] - toleranse:
+                    raise ValueError(f"Last {ilast}: fordelt last må starte og slutte i knutepunkter.")
+                # Fortegnet er definert i elementets lokale y-retning. Hvis elementet peker motsatt vei av lastlinjen, 
+                # ville lasten fått motsatt fortegn på dette elementet. Det er nesten alltid en feil i inputfilen, 
+                # så programmet stopper heller enn å gjette.
+                if e[ielem] @ u < 0:
+                    raise ValueError(f"Last {ilast}: element {ielem} peker motsatt vei av lasten "
+                                     f"Definer lasten i samme retning som elementene "
+                                     f"(fra knutepunkt 1 mot knutepunkt 2).")
+                fordelt[ielem, 0] += v1 + (v2 - v1) * t1 / lastlengde
+                fordelt[ielem, 1] += v1 + (v2 - v1) * t2 / lastlengde
+                dekket_lengde += elemlen[ielem]
+            if abs(dekket_lengde - lastlengde) > toleranse:
+                raise ValueError(f"Last {ilast}: den fordelte lasten dekker ikke hele elementer "
+                                 f"langs linjen den er definert på.")
 
-        if (lasttype in (1, 2) and len(treff) > 1 and all(min(abs(a), abs(a - lengde)) <=
-            toleranse for _, a, _, lengde in treff)):
-            # En punktlast i et knutepunkt gir ikke fastinnspenningsmoment.
-            continue
-
-        if not treff or (lasttype in (1, 2) and len(treff) != 1):
-            raise ValueError(
-                f"Lastlinje {ilast + 1} må ligge på "
-                f"{'nøyaktig ett element' if lasttype in (1, 2) else 'minst ett element'}; "
-                f"fant {len(treff)}")
-
-        for treffdata in treff:
-            ielem, a, b, lengde = treffdata[:4]
-            if lasttype == 2:
-                continue
-            elif lasttype == 0:
-                # Direkte integrasjon av en konstant fordelt kraftlast.
-                integral_start = ((b**2 - a**2) / 2.0 - 2.0 * (b**3 - a**3) / (3.0 * lengde) + (b**4 - a**4) / (4.0 * lengde**2))
-                integral_slutt = (-(b**3 - a**3) / (3.0 * lengde) + (b**4 - a**4) / (4.0 * lengde**2))
-                # Positiv kraft er oppover, mens rotasjon er positiv medurs.
-                ekvivalent = -storrelse * np.array([integral_start, integral_slutt])
-            elif lasttype == 3:
-                integral_start, integral_slutt = _lastintegraler(a, b, lengde, treffdata[4], treffdata[5])
-                ekvivalent = -np.array([integral_start, integral_slutt])
-            elif lasttype == 1:
-                koeff_start, koeff_slutt = _kraftkoeffisienter(a, lengde)
-                ekvivalent = storrelse * np.array([koeff_start, koeff_slutt])
-            else:
-                koeff_start, koeff_slutt = _momentkoeffisienter(a, lengde)
-                ekvivalent = storrelse * np.array([koeff_start, koeff_slutt])
-
-            sfim[ielem] -= ekvivalent
-    return sfim
+    return fordelt, punktlaster, knutemom
 
 
-def elemlast_til_syslast(R, S_fim, elemkonn):
-    # Assemblerer elementlastvektoren inn i systemlastvektoren.
+def elementlastvektor(q1, q2, punktlaster, L):
+    """
+    Fastinnspenningsmomentene S_fim = [M1_fim, M2_fim] for ett element med
+    begge ender fast innspent (positive med klokka).
 
-    # S_fim[ielem, 0] hører til elementets startknutepunkt, og S_fim[ielem, 1] hører til elementets sluttknutepunkt.
-    # Koblingen mellom lokale elementfrihetsgrader og systemfrihetsgrader bestemmes av elemkonn.
+    Lineært fordelt last q1 -> q2 (oppgaven: "splittes i to trekantbidrag"):
+        Trekant med q1 i ende 1 og 0 i ende 2: M1 = q1*L^2/20, M2 = -q1*L^2/30
+        Trekant med 0 i ende 1 og q2 i ende 2: M1 = q2*L^2/30, M2 = -q2*L^2/20
+        Sum:  M1 =  L^2/60 * (3*q1 + 2*q2)
+              M2 = -L^2/60 * (2*q1 + 3*q2)
+        Kontroll med jevn last q nedover (q1 = q2 = -q):  M1 = -qL^2/12 og
+        M2 = +qL^2/12, dvs. mot klokka i venstre ende og med klokka i høyre.
 
-    # Parametere
-    # ----------
-    # R : array_like, shape (npunkt,)
-    #     Systemlastvektor før elementbidragene er lagt til.
-    # S_fim : array_like, shape (nelem, 2)
-    #     Fastinnspenningsmomenter for hvert element.
-    # elemkonn : array_like, shape (nelem, 2)
-    #     Knutepunktindeks for elementets start og slutt.
+    Punktlast P i avstand a fra ende 1 (b = L - a):
+        M1 =  P*a*b^2/L^2
+        M2 = -P*a^2*b/L^2
 
-    # Returnerer
-    # ----------
-    # numpy.ndarray, shape (npunkt,)
-    # Oppdatert systemlastvektor. Inputvektoren R endres ikke.
-    
-    R = np.asarray(R, dtype=float)
-    S_fim = np.asarray(S_fim, dtype=float)
-    elemkonn = np.asarray(elemkonn, dtype=int)
-
-    if R.ndim != 1:
-        raise ValueError("R må være en endimensjonal systemlastvektor")
-    if S_fim.ndim != 2 or S_fim.shape[1] != 2:
-        raise ValueError("S_fim må ha formen (antall elementer, 2)")
-    if elemkonn.ndim != 2 or elemkonn.shape[1] != 2:
-        raise ValueError("elemkonn må ha formen (antall elementer, 2)")
-    if S_fim.shape[0] != elemkonn.shape[0]:
-        raise ValueError("S_fim og elemkonn må ha samme antall elementer")
-    if np.any(elemkonn < 0) or np.any(elemkonn >= len(R)):
-        raise ValueError("elemkonn inneholder en knutepunktindeks utenfor R")
-
-    systemlast = R.copy()
-    for (start, slutt), (moment_start, moment_slutt) in zip(elemkonn, S_fim):
-        systemlast[start] += moment_start
-        systemlast[slutt] += moment_slutt
-
-    return systemlast
+    Flere laster på samme element legges sammen (superposisjon).
+    """
+    S_fim = np.array([L**2 / 60 * (3 * q1 + 2 * q2),
+                      -L**2 / 60 * (2 * q1 + 3 * q2)])
+    for a, P in punktlaster:
+        b = L - a
+        S_fim += np.array([P * a * b**2 / L**2,
+                           -P * a**2 * b / L**2])
+    return S_fim
 
 
-def knutmom(R, lastdata, punkt, toleranse=1e-8):
-    # Adderer ytre knutepunktsmomenter til systemlastvektoren.
+def elementlastvektorer(nelem, elemlen, fordelt, punktlaster):
+    # Beregner S_fim for alle elementer. Rad ielem = [M1_fim, M2_fim]
+    S_fim = np.zeros((nelem, 2))
+    for ielem in range(nelem):
+        S_fim[ielem] = elementlastvektor(fordelt[ielem, 0], fordelt[ielem, 1],
+                                         punktlaster[ielem], elemlen[ielem])
+    return S_fim
 
-    # Lastdata med lasttype == 2 tolkes som et moment på knutepunktet angitt av x_start og y_start. Momentets størrelse og
-    # fortegn hentes fra kolonnen laststorrelse. Laster av andre typer ignoreres, siden de behandles av funksjonen elemlast.
 
-    # Parametere
-    # ----------
-    # R : array_like, shape (npunkt,)
-    #     Systemlastvektor før knutepunktsmomentene legges til.
-    # lastdata : array_like, shape (nlast, 6)
-    #     Lastdata i formatet fra inputfilen.
-    # punkt : array_like, shape (npunkt, 4)
-    #     Knutepunktdata. De to første kolonnene er x- og y-koordinater.
-    # toleranse : float
-    #     Tillatt avstand mellom lastens koordinater og knutepunktets
-    #     koordinater.
+def systemlastvektor(npunkt, nelem, elem, S_fim, knutemom):
+    """
+    Setter sammen systemlastvektoren R = (ytre knutepunktsmomenter) - (sum S_fim).
 
-    # Returnerer
-    # ----------
-    # numpy.ndarray, shape (npunkt,)
-    #     Oppdatert systemlastvektor. Inputvektoren R endres ikke
-
-    R = np.asarray(R, dtype=float)
-    lastdata = np.asarray(lastdata, dtype=float)
-    punkt = np.asarray(punkt, dtype=float)
-
-    if R.ndim != 1:
-        raise ValueError("R må være en endimensjonal systemlastvektor")
-    if punkt.ndim != 2 or punkt.shape[1] < 2:
-        raise ValueError("punkt må ha minst to kolonner")
-    if len(R) != len(punkt):
-        raise ValueError("R må ha én komponent per knutepunkt")
-    if lastdata.size == 0:
-        return R.copy()
-    if lastdata.ndim != 2 or lastdata.shape[1] != 6:
-        raise ValueError("lastdata må ha seks kolonner")
-
-    systemlast = R.copy()
-    for ilast, last in enumerate(lastdata):
-        if int(last[0]) != 2:
-            continue
-
-        koordinat = last[1:3]
-        avstander = np.linalg.norm(punkt[:, :2] - koordinat, axis=1)
-        treff = np.flatnonzero(avstander <= toleranse)
-        if len(treff) != 1:
-            raise ValueError(f"Knutepunktsmoment på lastlinje {ilast + 1} må treffe "f"nøyaktig ett knutepunkt; fant {len(treff)}")
-        systemlast[treff[0]] += last[5]
-
-    return systemlast
+    Konnektivitetstabellen elem forteller hvilket knutepunkt (systemfrihetsgrad)
+    hver element-ende hører til: ende 1 -> elem[ielem, E_N1], ende 2 -> elem[ielem, E_N2].
+    """
+    R = knutemom.astype(float).copy()
+    for ielem in range(nelem):
+        R[elem[ielem, E_N1]] -= S_fim[ielem, 0]
+        R[elem[ielem, E_N2]] -= S_fim[ielem, 1]
+    return R
